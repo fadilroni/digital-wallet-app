@@ -1,6 +1,20 @@
 import 'package:flutter/material.dart';
 import '../data_model.dart';
 
+String getNamaIkon(IconData ikon) {
+  if (ikon == Icons.fastfood) return "Makanan / Minuman";
+  if (ikon == Icons.directions_car) return "Transportasi";
+  if (ikon == Icons.shopping_bag) return "Belanja";
+  if (ikon == Icons.receipt_long) return "Tagihan / Biaya";
+  if (ikon == Icons.payments) return "Gaji / Pendapatan";
+  if (ikon == Icons.card_giftcard) return "Hadiah / Pemberian";
+  if (ikon == Icons.trending_up) return "Investasi / Bonus";
+  if (ikon == Icons.home) return "Kebutuhan Rumah";
+  if (ikon == Icons.bolt) return "Listrik / Utilitas";
+  if (ikon == Icons.medical_services) return "Kesehatan / Medis";
+  return "Lainnya";
+}
+
 class KategoriScreen extends StatefulWidget {
   const KategoriScreen({super.key});
 
@@ -60,42 +74,31 @@ class _KategoriScreenState extends State<KategoriScreen> {
                         ),
                       ],
                     ),
-                    SizedBox(height: 10),
-                    Text(
-                      "Pilih Logo Kategori:",
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    SizedBox(height: 5),
-                    SizedBox(
-                      height: 60,
-                      child: ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: daftarPilihanIkon.length,
-                        itemBuilder: (context, index) {
-                          IconData ikon = daftarPilihanIkon[index];
-                          bool isSelected = editIkon == ikon;
-                          return GestureDetector(
-                            onTap: () {
-                              setDialogState(() {
-                                editIkon = ikon;
-                              });
-                            },
-                            child: Container(
-                              margin: EdgeInsets.symmetric(horizontal: 5),
-                              padding: EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: isSelected ? Colors.green : Colors.grey.shade800,
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: isSelected ? Colors.white : Colors.transparent,
-                                  width: 2,
-                                ),
-                              ),
-                              child: Icon(ikon, color: Colors.white),
-                            ),
-                          );
-                        },
+                    const SizedBox(height: 15),
+                    DropdownButtonFormField<IconData>(
+                      initialValue: editIkon,
+                      decoration: const InputDecoration(
+                        labelText: "Pilih Logo Kategori",
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       ),
+                      items: daftarPilihanIkon.map((IconData ikon) {
+                        return DropdownMenuItem<IconData>(
+                          value: ikon,
+                          child: Row(
+                            children: [
+                              Icon(ikon, color: Colors.green),
+                              const SizedBox(width: 12),
+                              Text(getNamaIkon(ikon)),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (IconData? val) {
+                        setDialogState(() {
+                          editIkon = val!;
+                        });
+                      },
                     ),
                   ],
                 ),
@@ -227,42 +230,34 @@ class _KategoriScreenState extends State<KategoriScreen> {
               ),
             ],
           ),
-          SizedBox(height: 10),
-
-          // 3. PILIHAN LOGO / IKON (Bentuk Grid Horisontal)
-          Text(
-            "Pilih Logo Kategori:",
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-          SizedBox(height: 5),
-          SizedBox(
-            height: 60,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              itemCount: daftarPilihanIkon.length,
-              itemBuilder: (context, index) {
-                IconData ikon = daftarPilihanIkon[index];
-                bool isSelected = _ikonTerpilih == ikon;
-                return GestureDetector(
-                  onTap: () => setState(() => _ikonTerpilih = ikon),
-                  child: Container(
-                    margin: EdgeInsets.symmetric(horizontal: 5),
-                    padding: EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: isSelected ? Colors.green : Colors.grey.shade800,
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: isSelected ? Colors.white : Colors.transparent,
-                        width: 2,
-                      ),
-                    ),
-                    child: Icon(ikon, color: Colors.white),
-                  ),
-                );
-              },
+          const SizedBox(height: 15),
+          // 3. PILIHAN LOGO / IKON (Dropdown)
+          DropdownButtonFormField<IconData>(
+            initialValue: _ikonTerpilih,
+            decoration: const InputDecoration(
+              labelText: "Pilih Logo Kategori",
+              border: OutlineInputBorder(),
+              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             ),
+            items: daftarPilihanIkon.map((IconData ikon) {
+              return DropdownMenuItem<IconData>(
+                value: ikon,
+                child: Row(
+                  children: [
+                    Icon(ikon, color: Colors.green),
+                    const SizedBox(width: 12),
+                    Text(getNamaIkon(ikon)),
+                  ],
+                ),
+              );
+            }).toList(),
+            onChanged: (IconData? val) {
+              setState(() {
+                _ikonTerpilih = val!;
+              });
+            },
           ),
-          SizedBox(height: 15),
+          const SizedBox(height: 15),
 
           // 4. TOMBOL SIMPAN
           ElevatedButton(

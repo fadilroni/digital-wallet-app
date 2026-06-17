@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../data_model.dart';
 import 'kategori_screen.dart';
 import 'akun_screen.dart';
+import 'grafik_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -560,9 +561,12 @@ class _HomeScreenState extends State<HomeScreen> {
     } else if (_currentIndex == 1) {
       appBarTitle = "Kelola Master Kategori";
       activeBody = KategoriScreen();
-    } else {
+    } else if (_currentIndex == 2) {
       appBarTitle = "Master Akun / Dompet";
       activeBody = AkunScreen();
+    } else {
+      appBarTitle = "Grafik Keuangan";
+      activeBody = const GrafikScreen();
     }
 
     return Scaffold(
@@ -654,7 +658,8 @@ class _HomeScreenState extends State<HomeScreen> {
             _currentIndex = index;
           });
         },
-        items: [
+        type: BottomNavigationBarType.fixed,
+        items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
           BottomNavigationBarItem(
             icon: Icon(Icons.category),
@@ -663,6 +668,10 @@ class _HomeScreenState extends State<HomeScreen> {
           BottomNavigationBarItem(
             icon: Icon(Icons.account_balance_wallet),
             label: "Akun/Dompet",
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.bar_chart),
+            label: "Grafik",
           ),
         ],
       ),
