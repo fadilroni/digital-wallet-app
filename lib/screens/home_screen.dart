@@ -213,7 +213,10 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     // Proteksi filter kategori jika kategori dihapus dari masterKategori
-    final List<String> listKategoriUnik = masterKategori.map((k) => k.nama).toSet().toList();
+    final List<String> listKategoriUnik = masterKategori
+        .map((k) => k.nama)
+        .toSet()
+        .toList();
     if (!["Semua", ...listKategoriUnik].contains(_filterKategori)) {
       _filterKategori = "Semua";
     }
@@ -224,7 +227,8 @@ class _HomeScreenState extends State<HomeScreen> {
           t.tanggal.isBefore(rangeSelesai.add(Duration(days: 1)));
 
       bool masukAkun = _filterAkun == "Semua" || t.akun == _filterAkun;
-      bool masukKategori = _filterKategori == "Semua" || t.kategori == _filterKategori;
+      bool masukKategori =
+          _filterKategori == "Semua" || t.kategori == _filterKategori;
       bool lolosFilter = masukRange && masukAkun && masukKategori;
 
       if (lolosFilter) {
@@ -559,14 +563,14 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
     } else if (_currentIndex == 1) {
-      appBarTitle = "Kelola Master Kategori";
-      activeBody = KategoriScreen();
-    } else if (_currentIndex == 2) {
-      appBarTitle = "Master Akun / Dompet";
-      activeBody = AkunScreen();
-    } else {
       appBarTitle = "Grafik Keuangan";
       activeBody = const GrafikScreen();
+    } else if (_currentIndex == 2) {
+      appBarTitle = "Kelola Master Kategori";
+      activeBody = KategoriScreen();
+    } else {
+      appBarTitle = "Master Akun / Dompet";
+      activeBody = AkunScreen();
     }
 
     return Scaffold(
@@ -583,11 +587,14 @@ class _HomeScreenState extends State<HomeScreen> {
                       if (path != null) {
                         String displayPath = path;
                         if (path.contains('/Android/data/')) {
-                          displayPath = 'Android/data/.../' + path.split('/').last;
+                          displayPath =
+                              'Android/data/.../' + path.split('/').last;
                         }
                         messenger.showSnackBar(
                           SnackBar(
-                            content: Text('Backup berhasil diekspor ke:\n$displayPath'),
+                            content: Text(
+                              'Backup berhasil diekspor ke:\n$displayPath',
+                            ),
                             duration: Duration(seconds: 6),
                           ),
                         );
@@ -607,17 +614,24 @@ class _HomeScreenState extends State<HomeScreen> {
                         final file = await getBackupFile();
                         String displayPath = file.path;
                         if (displayPath.contains('/Android/data/')) {
-                          displayPath = 'Android/data/.../' + displayPath.split('/').last;
+                          displayPath =
+                              'Android/data/.../' + displayPath.split('/').last;
                         }
                         messenger.showSnackBar(
                           SnackBar(
-                            content: Text('File backup tidak ditemukan.\nLetakkan file backup di:\n$displayPath'),
+                            content: Text(
+                              'File backup tidak ditemukan.\nLetakkan file backup di:\n$displayPath',
+                            ),
                             duration: Duration(seconds: 7),
                           ),
                         );
                       } else {
                         messenger.showSnackBar(
-                          SnackBar(content: Text('Format data backup tidak valid atau gagal dibaca.')),
+                          SnackBar(
+                            content: Text(
+                              'Format data backup tidak valid atau gagal dibaca.',
+                            ),
+                          ),
                         );
                       }
                     }
@@ -661,6 +675,7 @@ class _HomeScreenState extends State<HomeScreen> {
         type: BottomNavigationBarType.fixed,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
+          BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: "Grafik"),
           BottomNavigationBarItem(
             icon: Icon(Icons.category),
             label: "Kategori",
@@ -668,10 +683,6 @@ class _HomeScreenState extends State<HomeScreen> {
           BottomNavigationBarItem(
             icon: Icon(Icons.account_balance_wallet),
             label: "Akun/Dompet",
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.bar_chart),
-            label: "Grafik",
           ),
         ],
       ),
