@@ -58,7 +58,7 @@ Aplikasi manajemen keuangan pribadi berbasis Flutter yang dirancang dengan antar
 ### **Versi 2.0.1 (Terbaru)**
 * **Rebranding Aplikasi**: 
   * Mengubah nama paket dan aplikasi menjadi **Dompet Digital**.
-  * Memperbarui konfigurasi Gradle (`applicationId` & `namespace` menjadi `com.example.dompet_digital`).
+  * Memperbarui konfigurasi Gradle (`applicationId` & `namespace` menjadi `app.bantudigital.dompet_digital`).
   * Memindahkan kelas activity Android (`MainActivity.kt`) ke package directory yang baru.
   * Mengubah judul aplikasi di web dan meta iOS.
 * **Optimalisasi Navigasi**:

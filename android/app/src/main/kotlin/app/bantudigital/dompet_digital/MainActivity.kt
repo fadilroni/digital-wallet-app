@@ -1,4 +1,4 @@
-package com.example.dompet_digital
+package app.bantudigital.dompet_digital
 
 import io.flutter.embedding.android.FlutterActivity
 

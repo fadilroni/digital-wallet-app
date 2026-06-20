@@ -487,7 +487,37 @@ Future<String?> exportData() async {
 // Import data dari JSON
 Future<String> importData() async {
   try {
-    final file = await getBackupFile();
+    File file = await getBackupFile();
+
+    if (Platform.isAndroid) {
+      final currentPath = file.path;
+      final packages = [
+        'com.example.dompet_pribadi',
+        'com.example.dompet_digital',
+        'app.bantudigital.dompet_digital'
+      ];
+
+      for (final pkg in packages) {
+        String checkPath = currentPath;
+        if (currentPath.contains('app.bantudigital.dompet_digital')) {
+          checkPath = currentPath.replaceFirst('app.bantudigital.dompet_digital', pkg);
+        } else if (currentPath.contains('com.example.dompet_digital')) {
+          checkPath = currentPath.replaceFirst('com.example.dompet_digital', pkg);
+        } else if (currentPath.contains('com.example.dompet_pribadi')) {
+          checkPath = currentPath.replaceFirst('com.example.dompet_pribadi', pkg);
+        }
+
+        final checkFile = File(checkPath);
+        try {
+          if (await checkFile.exists()) {
+            await checkFile.readAsString();
+            file = checkFile;
+            break;
+          }
+        } catch (_) {}
+      }
+    }
+
     if (!await file.exists()) {
       return "not_found";
     }
