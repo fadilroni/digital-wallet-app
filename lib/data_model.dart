@@ -451,12 +451,24 @@ void loadData() {
 
 // Mendapatkan path file backup
 
-Future<File> getBackupFile({String? filename}) async {
-  Directory? dir;
+// Mendapatkan direktori backup kustom (/storage/emulated/0/backup/dompet_digital atau fallback)
+Future<Directory> getCustomBackupDirectory() async {
   if (Platform.isAndroid) {
-    dir = await getExternalStorageDirectory();
+    Directory? extDir = await getExternalStorageDirectory();
+    if (extDir != null) {
+      String extPath = extDir.path;
+      if (extPath.contains('/Android/data')) {
+        String rootPath = extPath.split('/Android/data').first;
+        return Directory('$rootPath/backup/dompet_digital');
+      }
+    }
   }
-  dir ??= await getApplicationDocumentsDirectory();
+  final docDir = await getApplicationDocumentsDirectory();
+  return Directory('${docDir.path}/backup/dompet_digital');
+}
+
+Future<File> getBackupFile({String? filename}) async {
+  final dir = await getCustomBackupDirectory();
   final actualFilename = filename ?? 'dompet_pribadi_backup.json';
   return File('${dir.path}/$actualFilename');
 }
@@ -465,50 +477,15 @@ Future<File> getBackupFile({String? filename}) async {
 Future<List<File>> getAvailableBackupFiles() async {
   List<File> backupFiles = [];
   try {
-    Directory? dir;
-    if (Platform.isAndroid) {
-      dir = await getExternalStorageDirectory();
-    }
-    dir ??= await getApplicationDocumentsDirectory();
-
-    List<Directory> searchDirs = [];
-    searchDirs.add(dir);
-
-    if (Platform.isAndroid) {
-      final currentPath = dir.path;
-      final packages = [
-        'com.example.dompet_pribadi',
-        'com.example.dompet_digital',
-        'app.bantudigital.dompet_digital'
-      ];
-      for (final pkg in packages) {
-        String checkPath = currentPath;
-        if (currentPath.contains('app.bantudigital.dompet_digital')) {
-          checkPath = currentPath.replaceFirst('app.bantudigital.dompet_digital', pkg);
-        } else if (currentPath.contains('com.example.dompet_digital')) {
-          checkPath = currentPath.replaceFirst('com.example.dompet_digital', pkg);
-        } else if (currentPath.contains('com.example.dompet_pribadi')) {
-          checkPath = currentPath.replaceFirst('com.example.dompet_pribadi', pkg);
-        }
-        final checkDir = Directory(checkPath);
-        if (checkDir.path != dir.path) {
-          searchDirs.add(checkDir);
-        }
-      }
-    }
-
-    for (var d in searchDirs) {
-      if (await d.exists()) {
-        final List<FileSystemEntity> entities = d.listSync();
-        for (var entity in entities) {
-          if (entity is File) {
-            final name = entity.path.split(Platform.pathSeparator).last;
-            if (name == 'dompet_pribadi_backup.json' ||
-                (name.startsWith('dompet_pribadi_backup_') && name.endsWith('.json'))) {
-              if (!backupFiles.any((f) => f.path.split(Platform.pathSeparator).last == name)) {
-                backupFiles.add(entity);
-              }
-            }
+    final dir = await getCustomBackupDirectory();
+    if (await dir.exists()) {
+      final List<FileSystemEntity> entities = dir.listSync();
+      for (var entity in entities) {
+        if (entity is File) {
+          final name = entity.path.split(Platform.pathSeparator).last;
+          if (name == 'dompet_pribadi_backup.json' ||
+              (name.startsWith('dompet_pribadi_backup_') && name.endsWith('.json'))) {
+            backupFiles.add(entity);
           }
         }
       }
@@ -554,6 +531,10 @@ Future<String?> exportData() async {
     final filename = "dompet_pribadi_backup_$dateStr.json";
 
     final file = await getBackupFile(filename: filename);
+    final parentDir = file.parent;
+    if (!await parentDir.exists()) {
+      await parentDir.create(recursive: true);
+    }
     await file.writeAsString(jsonString);
     return file.path;
   } catch (e) {
@@ -570,35 +551,6 @@ Future<String> importData({File? selectedFile}) async {
       file = selectedFile;
     } else {
       file = await getBackupFile();
-
-      if (Platform.isAndroid) {
-        final currentPath = file.path;
-        final packages = [
-          'com.example.dompet_pribadi',
-          'com.example.dompet_digital',
-          'app.bantudigital.dompet_digital'
-        ];
-
-        for (final pkg in packages) {
-          String checkPath = currentPath;
-          if (currentPath.contains('app.bantudigital.dompet_digital')) {
-            checkPath = currentPath.replaceFirst('app.bantudigital.dompet_digital', pkg);
-          } else if (currentPath.contains('com.example.dompet_digital')) {
-            checkPath = currentPath.replaceFirst('com.example.dompet_digital', pkg);
-          } else if (currentPath.contains('com.example.dompet_pribadi')) {
-            checkPath = currentPath.replaceFirst('com.example.dompet_pribadi', pkg);
-          }
-
-          final checkFile = File(checkPath);
-          try {
-            if (await checkFile.exists()) {
-              await checkFile.readAsString();
-              file = checkFile;
-              break;
-            }
-          } catch (_) {}
-        }
-      }
     }
 
     if (!await file.exists()) {

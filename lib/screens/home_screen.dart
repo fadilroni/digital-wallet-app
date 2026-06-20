@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/services.dart';
 import '../data_model.dart';
 import 'kategori_screen.dart';
 import 'akun_screen.dart';
@@ -469,6 +471,46 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  static const _storageChannel = MethodChannel('app.bantudigital.dompet_digital/storage');
+
+  Future<bool> _checkStoragePermission() async {
+    if (!Platform.isAndroid) return true;
+    try {
+      final bool hasPerm = await _storageChannel.invokeMethod('checkStoragePermission');
+      return hasPerm;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _requestStoragePermission() async {
+    if (!Platform.isAndroid) return;
+    try {
+      await _storageChannel.invokeMethod('requestStoragePermission');
+    } catch (_) {}
+  }
+
+  void _pickFileFromFileManager() async {
+    try {
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+      );
+
+      if (!mounted) return;
+
+      if (result != null && result.files.single.path != null) {
+        final File file = File(result.files.single.path!);
+        _confirmAndImport(file);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Gagal membuka file manager: $e")),
+      );
+    }
+  }
+
   void _showImportSelectionDialog() async {
     // Show loading indicator
     showDialog(
@@ -487,8 +529,8 @@ class _HomeScreenState extends State<HomeScreen> {
       final defaultFile = await getBackupFile();
       if (!mounted) return;
       String displayPath = defaultFile.path;
-      if (displayPath.contains('Android/data/')) {
-        displayPath = displayPath.substring(displayPath.indexOf('Android/data/'));
+      if (displayPath.contains('storage/emulated/0/')) {
+        displayPath = displayPath.substring(displayPath.indexOf('backup/'));
       }
 
       showDialog(
@@ -506,15 +548,16 @@ class _HomeScreenState extends State<HomeScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                "Tidak ditemukan file backup (.json) di folder aplikasi Anda.",
+                "Tidak ditemukan file backup (.json) di folder backup.",
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 12),
               const Text(
-                "Jika Anda memindahkan file dari HP lain, pastikan diletakkan di folder internal:",
+                "Pastikan file diletakkan di folder penyimpanan internal berikut:",
               ),
               const SizedBox(height: 8),
               Container(
+                width: double.infinity,
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: Colors.grey[100],
@@ -523,12 +566,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 child: Text(
                   displayPath,
-                  style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+                  style: const TextStyle(fontFamily: 'monospace', fontSize: 12, fontWeight: FontWeight.bold),
                 ),
               ),
               const SizedBox(height: 12),
               const Text(
-                "Catatan Android 11+:\nFolder Android/data mungkin tersembunyi. Hubungkan HP ke PC via USB untuk memindahkan file, atau gunakan aplikasi file manager yang mendukung akses Android/data.",
+                "Anda juga dapat menekan 'Cari File di HP' untuk mencari dan memilih file backup secara manual dari folder mana saja (seperti folder Download).",
                 style: TextStyle(fontSize: 12, color: Colors.grey),
               ),
             ],
@@ -537,6 +580,21 @@ class _HomeScreenState extends State<HomeScreen> {
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: const Text("Tutup"),
+            ),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.folder_open),
+              label: const Text("Cari File di HP"),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              onPressed: () {
+                Navigator.pop(context); // Close warning dialog
+                _pickFileFromFileManager();
+              },
             ),
           ],
         ),
@@ -552,139 +610,222 @@ class _HomeScreenState extends State<HomeScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.fromLTRB(
-            24,
-            20,
-            24,
-            MediaQuery.of(ctx).viewInsets.bottom + 32,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
+        String searchQuery = "";
+        final searchCtrl = TextEditingController();
+
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setBottomSheetState) {
+            final List<File> filteredFiles = files.where((file) {
+              final filename = file.path.split(Platform.pathSeparator).last.toLowerCase();
+              return filename.contains(searchQuery.toLowerCase());
+            }).toList();
+
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                24,
+                20,
+                24,
+                MediaQuery.of(ctx).viewInsets.bottom + 32,
               ),
-              const SizedBox(height: 20),
-              Row(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Icon(Icons.download, color: Colors.green, size: 28),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          "Pilih File Backup",
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 20,
-                          ),
-                        ),
-                        Text(
-                          "Ditemukan ${files.length} file backup",
-                          style: TextStyle(color: Colors.grey[600], fontSize: 13),
-                        ),
-                      ],
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      const Icon(Icons.download, color: Colors.green, size: 28),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              "Pilih File Backup",
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 20,
+                              ),
+                            ),
+                            Text(
+                              searchQuery.isEmpty
+                                  ? "Ditemukan ${files.length} file backup"
+                                  : "Ditemukan ${filteredFiles.length} dari ${files.length} file backup",
+                              style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  // Search TextField
+                  TextField(
+                    controller: searchCtrl,
+                    decoration: InputDecoration(
+                      hintText: "Cari nama file...",
+                      prefixIcon: const Icon(Icons.search, color: Colors.green),
+                      suffixIcon: searchCtrl.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, color: Colors.grey),
+                              onPressed: () {
+                                setBottomSheetState(() {
+                                  searchCtrl.clear();
+                                  searchQuery = "";
+                                });
+                              },
+                            )
+                          : null,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey[300]!),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.green, width: 2),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey[300]!),
+                      ),
+                    ),
+                    onChanged: (val) {
+                      setBottomSheetState(() {
+                        searchQuery = val;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(ctx); // Close bottom sheet
+                      _pickFileFromFileManager();
+                    },
+                    icon: const Icon(Icons.folder_open, color: Colors.green),
+                    label: const Text("Pilih File dari File Manager", style: TextStyle(color: Colors.green)),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Colors.green),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxHeight: MediaQuery.of(context).size.height * 0.4,
+                    ),
+                    child: filteredFiles.isEmpty
+                        ? Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 32),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.search_off, size: 48, color: Colors.grey[400]),
+                                const SizedBox(height: 8),
+                                Text(
+                                  "Tidak ada file yang cocok",
+                                  style: TextStyle(color: Colors.grey[600], fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                          )
+                        : ListView.builder(
+                            shrinkWrap: true,
+                            itemCount: filteredFiles.length,
+                            itemBuilder: (context, index) {
+                              final File file = filteredFiles[index];
+                              final String fullPath = file.path;
+                              final String filename = fullPath.split(Platform.pathSeparator).last;
+
+                              String displayDate = "";
+                              try {
+                                final stat = file.statSync();
+                                final dt = stat.modified;
+                                final day = dt.day.toString().padLeft(2, '0');
+                                final month = dt.month.toString().padLeft(2, '0');
+                                final year = dt.year;
+                                final hour = dt.hour.toString().padLeft(2, '0');
+                                final minute = dt.minute.toString().padLeft(2, '0');
+                                displayDate = "$day/$month/$year $hour:$minute";
+                              } catch (_) {
+                                displayDate = "Waktu modifikasi tidak diketahui";
+                              }
+
+                              String sourceApp = "";
+                              if (fullPath.contains('com.example.dompet_pribadi')) {
+                                sourceApp = " (Lama: Dompet Pribadi)";
+                              } else if (fullPath.contains('com.example.dompet_digital')) {
+                                sourceApp = " (Lama: Dompet Digital)";
+                              } else if (fullPath.contains('app.bantudigital.dompet_digital')) {
+                                sourceApp = " (Aplikasi Sekarang)";
+                              }
+
+                              return Card(
+                                margin: const EdgeInsets.symmetric(vertical: 6),
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  side: BorderSide(color: Colors.grey[300]!),
+                                ),
+                                child: ListTile(
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                  leading: CircleAvatar(
+                                    backgroundColor: Colors.green.withOpacity(0.1),
+                                    child: const Icon(Icons.description, color: Colors.green),
+                                  ),
+                                  title: Text(
+                                    filename,
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                  ),
+                                  subtitle: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        displayDate,
+                                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                                      ),
+                                      if (sourceApp.isNotEmpty) ...[
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          sourceApp,
+                                          style: const TextStyle(fontSize: 11, color: Colors.blue, fontWeight: FontWeight.w500),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                  trailing: const Icon(Icons.chevron_right),
+                                  onTap: () {
+                                    Navigator.pop(ctx); // Close bottom sheet
+                                    _confirmAndImport(file);
+                                  },
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text("Batal", style: TextStyle(fontWeight: FontWeight.bold)),
                   ),
                 ],
               ),
-              const SizedBox(height: 20),
-              ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxHeight: MediaQuery.of(context).size.height * 0.4,
-                ),
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: files.length,
-                  itemBuilder: (context, index) {
-                    final File file = files[index];
-                    final String fullPath = file.path;
-                    final String filename = fullPath.split(Platform.pathSeparator).last;
-
-                    String displayDate = "";
-                    try {
-                      final stat = file.statSync();
-                      final dt = stat.modified;
-                      final day = dt.day.toString().padLeft(2, '0');
-                      final month = dt.month.toString().padLeft(2, '0');
-                      final year = dt.year;
-                      final hour = dt.hour.toString().padLeft(2, '0');
-                      final minute = dt.minute.toString().padLeft(2, '0');
-                      displayDate = "$day/$month/$year $hour:$minute";
-                    } catch (_) {
-                      displayDate = "Waktu modifikasi tidak diketahui";
-                    }
-
-                    String sourceApp = "";
-                    if (fullPath.contains('com.example.dompet_pribadi')) {
-                      sourceApp = " (Lama: Dompet Pribadi)";
-                    } else if (fullPath.contains('com.example.dompet_digital')) {
-                      sourceApp = " (Lama: Dompet Digital)";
-                    } else if (fullPath.contains('app.bantudigital.dompet_digital')) {
-                      sourceApp = " (Aplikasi Sekarang)";
-                    }
-
-                    return Card(
-                      margin: const EdgeInsets.symmetric(vertical: 6),
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        side: BorderSide(color: Colors.grey[300]!),
-                      ),
-                      child: ListTile(
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        leading: CircleAvatar(
-                          backgroundColor: Colors.green.withOpacity(0.1),
-                          child: const Icon(Icons.description, color: Colors.green),
-                        ),
-                        title: Text(
-                          filename,
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                        ),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const SizedBox(height: 4),
-                            Text(
-                              displayDate,
-                              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                            ),
-                            if (sourceApp.isNotEmpty) ...[
-                              const SizedBox(height: 2),
-                              Text(
-                                sourceApp,
-                                style: const TextStyle(fontSize: 11, color: Colors.blue, fontWeight: FontWeight.w500),
-                              ),
-                            ],
-                          ],
-                        ),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () {
-                          Navigator.pop(ctx); // Close bottom sheet
-                          _confirmAndImport(file);
-                        },
-                      ),
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text("Batal", style: TextStyle(fontWeight: FontWeight.bold)),
-              ),
-            ],
-          ),
+            );
+          },
         );
       },
     );
@@ -895,15 +1036,40 @@ class _HomeScreenState extends State<HomeScreen> {
                             onPressed: () async {
                               Navigator.pop(ctx);
                               final messenger = ScaffoldMessenger.of(context);
+                              
+                              bool hasPermission = await _checkStoragePermission();
+                              if (!hasPermission) {
+                                await _requestStoragePermission();
+                                await Future.delayed(const Duration(milliseconds: 500));
+                                hasPermission = await _checkStoragePermission();
+                                if (!hasPermission) {
+                                  if (!mounted) return;
+                                  showDialog(
+                                    context: context,
+                                    builder: (context) => AlertDialog(
+                                      title: const Text("Izin Dibutuhkan"),
+                                      content: const Text("Aplikasi membutuhkan izin akses semua file untuk dapat menulis cadangan ke penyimpanan internal /backup/dompet_digital."),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(context),
+                                          child: const Text("Tutup"),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                  return;
+                                }
+                              }
+
                               String? path = await exportData();
                               if (path != null) {
                                 String displayPath = path;
-                                if (path.contains('Android/data/')) {
-                                  displayPath = path.substring(path.indexOf('Android/data/'));
+                                if (path.contains('storage/emulated/0/')) {
+                                  displayPath = path.substring(path.indexOf('backup/'));
                                 }
                                 messenger.showSnackBar(
                                   SnackBar(
-                                    content: Text('Backup berhasil diekspor ke:\n$displayPath\n\nCatatan: Hubungkan HP ke PC via USB jika tidak menemukan foldernya.'),
+                                    content: Text('Backup berhasil diekspor ke Penyimpanan Internal:\n$displayPath'),
                                     duration: const Duration(seconds: 8),
                                   ),
                                 );
@@ -927,8 +1093,32 @@ class _HomeScreenState extends State<HomeScreen> {
                                 borderRadius: BorderRadius.circular(12),
                               ),
                             ),
-                            onPressed: () {
+                            onPressed: () async {
                               Navigator.pop(ctx);
+                              
+                              bool hasPermission = await _checkStoragePermission();
+                              if (!hasPermission) {
+                                await _requestStoragePermission();
+                                await Future.delayed(const Duration(milliseconds: 500));
+                                hasPermission = await _checkStoragePermission();
+                                if (!hasPermission) {
+                                  if (!mounted) return;
+                                  showDialog(
+                                    context: context,
+                                    builder: (context) => AlertDialog(
+                                      title: const Text("Izin Dibutuhkan"),
+                                      content: const Text("Aplikasi membutuhkan izin akses semua file untuk membaca daftar file cadangan di penyimpanan internal /backup/dompet_digital."),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(context),
+                                          child: const Text("Tutup"),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                  return;
+                                }
+                              }
                               _showImportSelectionDialog();
                             },
                           ),
@@ -1401,6 +1591,17 @@ class _HomeScreenState extends State<HomeScreen> {
     double totalPemasukan = 0;
     double totalPengeluaran = 0;
 
+    // Hitung total pengeluaran khusus bulan saat ini untuk warning limit
+    final DateTime nowTime = DateTime.now();
+    double pengeluaranBulanIni = 0;
+    for (var t in daftarTransaksi) {
+      if (t.tipe == "Pengeluaran" &&
+          t.tanggal.year == nowTime.year &&
+          t.tanggal.month == nowTime.month) {
+        pengeluaranBulanIni += t.nominal;
+      }
+    }
+
     // Proteksi filter akun jika akun dihapus dari masterAkun
     if (!["Semua", ...masterAkun].contains(_filterAkun)) {
       _filterAkun = "Semua";
@@ -1616,7 +1817,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ],
             ),
-            if (limitPengeluaran > 0 && totalPengeluaran > limitPengeluaran) ...[
+            if (limitPengeluaran > 0 && pengeluaranBulanIni > limitPengeluaran) ...[
               Container(
                 margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -1643,7 +1844,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            "Pengeluaran periode ini (Rp ${formatRibuan(totalPengeluaran)}) telah melebihi batas maksimal Anda (Rp ${formatRibuan(limitPengeluaran)}).",
+                            "Pengeluaran bulan ini (Rp ${formatRibuan(pengeluaranBulanIni)}) telah melebihi batas maksimal bulanan Anda (Rp ${formatRibuan(limitPengeluaran)}).",
                             style: TextStyle(
                               color: Colors.red[300],
                               fontSize: 12,
