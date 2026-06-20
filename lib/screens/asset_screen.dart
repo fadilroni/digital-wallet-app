@@ -107,6 +107,7 @@ class _AssetScreenState extends State<AssetScreen> {
               buy: sellVal, // Harga untuk beli (dari orderbook sell)
               sell: buyVal, // Harga untuk jual (dari orderbook buy)
             );
+            globalHargaCrypto[crypto.symbol] = lastVal;
           }
         }
 

@@ -1,5 +1,7 @@
 import 'dart:math';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import '../data_model.dart';
 
 class GrafikScreen extends StatefulWidget {
@@ -30,10 +32,66 @@ class _GrafikScreenState extends State<GrafikScreen>
     Color(0xFF8A3DFF), Color(0xFFF7931A), Color(0xFF627EEA),
   ];
 
+  Map<String, double> _hargaLive = {};
+  bool _isLoadingPrices = false;
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _fetchHargaCrypto();
+  }
+
+  Future<void> _fetchHargaCrypto() async {
+    if (globalHargaCrypto.isNotEmpty) {
+      if (mounted) {
+        setState(() {
+          _hargaLive = Map.from(globalHargaCrypto);
+        });
+      }
+      return;
+    }
+    setState(() {
+      _isLoadingPrices = true;
+    });
+    try {
+      final resp = await http
+          .get(Uri.parse('https://indodax.com/api/ticker_all'))
+          .timeout(const Duration(seconds: 15));
+      if (resp.statusCode == 200) {
+        final data = jsonDecode(resp.body) as Map<String, dynamic>;
+        final tickers = data['tickers'] as Map<String, dynamic>;
+        final Map<String, double> harga = {};
+        for (final crypto in cryptoList) {
+          final key = '${crypto.symbol.toLowerCase()}_idr';
+          if (tickers.containsKey(key)) {
+            final ticker = tickers[key] as Map<String, dynamic>;
+            final lastVal =
+                double.tryParse(ticker['last']?.toString() ?? '') ?? 0.0;
+            harga[crypto.symbol] = lastVal;
+            globalHargaCrypto[crypto.symbol] = lastVal;
+          }
+        }
+        if (mounted) {
+          setState(() {
+            _hargaLive = harga;
+            _isLoadingPrices = false;
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _isLoadingPrices = false;
+          });
+        }
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _isLoadingPrices = false;
+        });
+      }
+    }
   }
 
   @override
@@ -371,10 +429,21 @@ class _GrafikScreenState extends State<GrafikScreen>
     // ── Nilai tiap aset ─────────────────────────────────────────
     final List<_AsetSlice> asetSlices = daftarAsset.asMap().entries.map((e) {
       final a = e.value;
+      double nilai;
+      if (a.assetType == 'deposito') {
+        nilai = a.buyPrice;
+      } else {
+        final livePrice = _hargaLive[a.symbol] ?? globalHargaCrypto[a.symbol];
+        if (livePrice != null && livePrice > 0) {
+          nilai = a.quantity * livePrice;
+        } else {
+          nilai = a.quantity * a.buyPrice; // fallback ke modal beli
+        }
+      }
       return _AsetSlice(
         label: a.assetType == 'deposito' ? a.name : a.symbol,
         sublabel: a.assetType == 'deposito' ? 'Deposito/Reksadana' : a.name,
-        nilai: a.buyPrice,
+        nilai: nilai,
         color: _asetColor(a, e.key),
       );
     }).toList()

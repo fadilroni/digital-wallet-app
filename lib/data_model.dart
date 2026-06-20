@@ -179,6 +179,9 @@ List<KontakUtang> daftarKontakUtang = [];
 List<Asset> daftarAsset = [];
 bool isHideSaldoGlobal = true;
 
+// Cache harga live crypto (simbol -> harga terakhir dalam IDR)
+Map<String, double> globalHargaCrypto = {};
+
 // Serialisasi & Deserialisasi Asset
 Map<String, dynamic> assetToMap(Asset a) {
   return {
