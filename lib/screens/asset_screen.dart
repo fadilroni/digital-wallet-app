@@ -895,7 +895,7 @@ class _AssetScreenState extends State<AssetScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Ketuk tombol "Tambah Aset" untuk mulai\nmencatat portofolio kripto Anda.',
+              'Ketuk tombol "+" untuk mulai\nmencatat portofolio kripto Anda.',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.grey[500], fontSize: 14),
             ),
