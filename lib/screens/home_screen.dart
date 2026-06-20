@@ -18,9 +18,23 @@ class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _catatanController = TextEditingController();
   bool isHideSaldo = isHideSaldoGlobal;
 
+  late final PageController _pageController;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(initialPage: _currentIndex);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
   String _pilihanTipe = "Pengeluaran";
   String _pilihanKategori = "";
-  String _pilihanAkun = masterAkun.first;
+  String _pilihanAkun = (akunUtama.isNotEmpty && masterAkun.contains(akunUtama)) ? akunUtama : (masterAkun.isNotEmpty ? masterAkun.first : "");
   int _currentIndex = 0;
   String _filterAkun = "Semua";
   String _filterKategori = "Semua";
@@ -454,8 +468,260 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _showSettingsDialog() {
+    final TextEditingController limitCtrl = TextEditingController(
+      text: limitPengeluaran > 0 ? formatRibuan(limitPengeluaran) : "",
+    );
+    bool enableLimit = limitPengeluaran > 0;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setBottomSheetState) {
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                24,
+                20,
+                24,
+                MediaQuery.of(ctx).viewInsets.bottom + 32,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[300],
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    const Row(
+                      children: [
+                        Icon(Icons.settings, color: Colors.green, size: 28),
+                        SizedBox(width: 12),
+                        Text(
+                          "Pengaturan Aplikasi",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 20,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    
+                    // SECTION 1: LIMIT PENGELUARAN
+                    const Text(
+                      "BATAS PENGELUARAN",
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SwitchListTile(
+                      title: const Text("Aktifkan Batas Pengeluaran"),
+                      subtitle: const Text("Beri peringatan jika pengeluaran melebihi batas"),
+                      value: enableLimit,
+                      activeColor: Colors.green,
+                      contentPadding: EdgeInsets.zero,
+                      onChanged: (val) {
+                        setBottomSheetState(() {
+                          enableLimit = val;
+                          if (!val) {
+                            limitCtrl.clear();
+                          }
+                        });
+                      },
+                    ),
+                    if (enableLimit) ...[
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: limitCtrl,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [RibuanInputFormatter()],
+                        decoration: const InputDecoration(
+                          labelText: "Batas Maksimal Pengeluaran (Rp)",
+                          prefixText: "Rp ",
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ],
+                    const Divider(height: 32),
+
+                    // SECTION 2: PRIVASI
+                    const Text(
+                      "PRIVASI",
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SwitchListTile(
+                      title: const Text("Sembunyikan Saldo"),
+                      subtitle: const Text("Sembunyikan saldo di halaman utama"),
+                      value: isHideSaldo,
+                      activeColor: Colors.green,
+                      contentPadding: EdgeInsets.zero,
+                      onChanged: (val) {
+                        setBottomSheetState(() {
+                          isHideSaldo = val;
+                          isHideSaldoGlobal = val;
+                        });
+                        setState(() {});
+                        saveData();
+                      },
+                    ),
+                    const Divider(height: 32),
+
+                    // SECTION 3: CADANGAN DATA
+                    const Text(
+                      "CADANGAN DATA",
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            icon: const Icon(Icons.upload),
+                            label: const Text("Ekspor Data"),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            onPressed: () async {
+                              Navigator.pop(ctx);
+                              final messenger = ScaffoldMessenger.of(context);
+                              String? path = await exportData();
+                              if (path != null) {
+                                String displayPath = path;
+                                if (path.contains('/Android/data/')) {
+                                  displayPath = 'Android/data/.../' + path.split('/').last;
+                                }
+                                messenger.showSnackBar(
+                                  SnackBar(
+                                    content: Text('Backup berhasil diekspor ke:\n$displayPath'),
+                                    duration: const Duration(seconds: 6),
+                                  ),
+                                );
+                              } else {
+                                messenger.showSnackBar(
+                                  const SnackBar(content: Text('Gagal mengekspor data.')),
+                                );
+                              }
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            icon: const Icon(Icons.download, color: Colors.green),
+                            label: const Text("Impor Data", style: TextStyle(color: Colors.green)),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Colors.green),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            onPressed: () async {
+                              Navigator.pop(ctx);
+                              final messenger = ScaffoldMessenger.of(context);
+                              String result = await importData();
+                              if (result == "success") {
+                                setState(() {});
+                                messenger.showSnackBar(
+                                  const SnackBar(content: Text('Data berhasil diimpor!')),
+                                );
+                              } else if (result == "not_found") {
+                                final file = await getBackupFile();
+                                String displayPath = file.path;
+                                if (displayPath.contains('/Android/data/')) {
+                                  displayPath = 'Android/data/.../' + displayPath.split('/').last;
+                                }
+                                messenger.showSnackBar(
+                                  SnackBar(
+                                    content: Text('File backup tidak ditemukan.\nLetakkan file backup di:\n$displayPath'),
+                                    duration: const Duration(seconds: 6),
+                                  ),
+                                );
+                              } else {
+                                messenger.showSnackBar(
+                                  const SnackBar(content: Text('Gagal mengimpor data.')),
+                                );
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 32),
+
+                    // SAVE BUTTON
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          if (enableLimit) {
+                            final limitStr = limitCtrl.text.replaceAll('.', '');
+                            limitPengeluaran = double.tryParse(limitStr) ?? 0.0;
+                          } else {
+                            limitPengeluaran = 0.0;
+                          }
+                        });
+                        saveData();
+                        Navigator.pop(ctx);
+                      },
+                      child: const Text(
+                        "Simpan Pengaturan",
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   void _tambahTransaksi() {
     DateTime pilihanTanggal = DateTime.now();
+    if (akunUtama.isNotEmpty && masterAkun.contains(akunUtama)) {
+      _pilihanAkun = akunUtama;
+    } else if (masterAkun.isNotEmpty) {
+      _pilihanAkun = masterAkun.first;
+    }
 
     showDialog(
       context: context,
@@ -787,6 +1053,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _tambahAkunDialog() {
     final TextEditingController namaCtrl = TextEditingController();
+    final TextEditingController saldoAwalCtrl = TextEditingController();
 
     showDialog(
       context: context,
@@ -799,11 +1066,29 @@ class _HomeScreenState extends State<HomeScreen> {
               Text("Tambah Akun/Dompet"),
             ],
           ),
-          content: TextField(
-            controller: namaCtrl,
-            decoration: const InputDecoration(
-              labelText: "Nama Akun/Dompet (Misal: Mandiri)",
-              border: OutlineInputBorder(),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: namaCtrl,
+                  decoration: const InputDecoration(
+                    labelText: "Nama Akun/Dompet (Misal: Mandiri)",
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: saldoAwalCtrl,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [RibuanInputFormatter()],
+                  decoration: const InputDecoration(
+                    labelText: "Saldo Awal (Rp)",
+                    prefixText: "Rp ",
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
             ),
           ),
           actions: [
@@ -820,8 +1105,14 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               onPressed: () {
                 if (namaCtrl.text.isNotEmpty) {
+                  final String nama = namaCtrl.text;
+                  final String saldoAwalStr = saldoAwalCtrl.text.replaceAll('.', '');
+                  final double saldoAwal = double.tryParse(saldoAwalStr) ?? 0.0;
                   setState(() {
-                    masterAkun.add(namaCtrl.text);
+                    masterAkun.add(nama);
+                    if (saldoAwal > 0) {
+                      saldoAwalMap[nama] = saldoAwal;
+                    }
                     saveData();
                   });
                   Navigator.pop(context);
@@ -858,7 +1149,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // Proteksi pilihan akun jika akun dihapus dari masterAkun
     if (!masterAkun.contains(_pilihanAkun) && masterAkun.isNotEmpty) {
-      _pilihanAkun = masterAkun.first;
+      _pilihanAkun = (akunUtama.isNotEmpty && masterAkun.contains(akunUtama)) ? akunUtama : masterAkun.first;
     }
 
     // Dinamis: Kategori yang ditampilkan menyesuaikan tipe yang dipilih
@@ -912,11 +1203,21 @@ class _HomeScreenState extends State<HomeScreen> {
     double totalSaldo = totalPemasukan - totalPengeluaran;
 
     String appBarTitle;
-    Widget activeBody;
-
     if (_currentIndex == 0) {
       appBarTitle = "Catatan Keuangan Digital";
-      activeBody = SingleChildScrollView(
+    } else if (_currentIndex == 1) {
+      appBarTitle = "Grafik Keuangan";
+    } else if (_currentIndex == 2) {
+      appBarTitle = "Kelola Master Kategori";
+    } else if (_currentIndex == 3) {
+      appBarTitle = "Master Akun / Dompet";
+    } else if (_currentIndex == 4) {
+      appBarTitle = "Utang & Piutang";
+    } else {
+      appBarTitle = "Portofolio Aset Kripto";
+    }
+
+    final Widget homeBody = SingleChildScrollView(
         padding: EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1056,7 +1357,47 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ],
             ),
-            SizedBox(height: 10),
+            if (limitPengeluaran > 0 && totalPengeluaran > limitPengeluaran) ...[
+              Container(
+                margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.red.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.redAccent.withValues(alpha: 0.4), width: 1.5),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 28),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            "Batas Pengeluaran Terlampaui!",
+                            style: TextStyle(
+                              color: Colors.redAccent,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            "Pengeluaran periode ini (Rp ${formatRibuan(totalPengeluaran)}) telah melebihi batas maksimal Anda (Rp ${formatRibuan(limitPengeluaran)}).",
+                            style: TextStyle(
+                              color: Colors.red[300],
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 10),
             // RINGKASAN SALDO, PEMASUKAN, & PENGELUARAN
             // RINGKASAN SALDO, PEMASUKAN, & PENGELUARAN
             Card(
@@ -1259,24 +1600,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       );
-    } else if (_currentIndex == 1) {
-      appBarTitle = "Grafik Keuangan";
-      activeBody = const GrafikScreen();
-    } else if (_currentIndex == 2) {
-      appBarTitle = "Kelola Master Kategori";
-      activeBody = KategoriScreen(
-        onTabChanged: (tipe) => setState(() => _kategoriTabTipe = tipe),
-      );
-    } else if (_currentIndex == 3) {
-      appBarTitle = "Master Akun / Dompet";
-      activeBody = AkunScreen();
-    } else if (_currentIndex == 4) {
-      appBarTitle = "Utang & Piutang";
-      activeBody = const UtangScreen();
-    } else {
-      appBarTitle = "Portofolio Aset Kripto";
-      activeBody = const AssetScreen();
-    }
 
     return Scaffold(
       appBar: AppBar(
@@ -1284,6 +1607,11 @@ class _HomeScreenState extends State<HomeScreen> {
         automaticallyImplyLeading: false,
         actions: _currentIndex == 0
             ? [
+                IconButton(
+                  icon: const Icon(Icons.settings_outlined),
+                  tooltip: "Pengaturan",
+                  onPressed: _showSettingsDialog,
+                ),
                 PopupMenuButton<String>(
                   onSelected: (value) async {
                     final messenger = ScaffoldMessenger.of(context);
@@ -1367,7 +1695,26 @@ class _HomeScreenState extends State<HomeScreen> {
               ]
             : null,
       ),
-      body: activeBody,
+      body: PageView(
+        controller: _pageController,
+        onPageChanged: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
+        children: [
+          KeepAliveWrapper(child: homeBody),
+          const KeepAliveWrapper(child: GrafikScreen()),
+          KeepAliveWrapper(
+            child: KategoriScreen(
+              onTabChanged: (tipe) => setState(() => _kategoriTabTipe = tipe),
+            ),
+          ),
+          const KeepAliveWrapper(child: AkunScreen()),
+          const KeepAliveWrapper(child: UtangScreen()),
+          const KeepAliveWrapper(child: AssetScreen()),
+        ],
+      ),
       floatingActionButton:
           (_currentIndex == 0 || _currentIndex == 2 || _currentIndex == 3)
           ? FloatingActionButton(
@@ -1394,6 +1741,11 @@ class _HomeScreenState extends State<HomeScreen> {
           setState(() {
             _currentIndex = index;
           });
+          _pageController.animateToPage(
+            index,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+          );
         },
         type: BottomNavigationBarType.fixed,
         items: const [
@@ -1418,5 +1770,25 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
     );
+  }
+}
+
+class KeepAliveWrapper extends StatefulWidget {
+  final Widget child;
+  const KeepAliveWrapper({super.key, required this.child});
+
+  @override
+  State<KeepAliveWrapper> createState() => _KeepAliveWrapperState();
+}
+
+class _KeepAliveWrapperState extends State<KeepAliveWrapper>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
   }
 }

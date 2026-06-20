@@ -11,7 +11,7 @@ class AkunScreen extends StatefulWidget {
 class _AkunScreenState extends State<AkunScreen> {
   /// Hitung saldo bersih untuk satu akun (Pemasukan - Pengeluaran)
   double _hitungSaldo(String namaAkun) {
-    double saldo = 0;
+    double saldo = saldoAwalMap[namaAkun] ?? 0.0;
     for (var t in daftarTransaksi) {
       if (t.akun == namaAkun) {
         if (t.tipe == "Pemasukan") {
@@ -118,6 +118,47 @@ class _AkunScreenState extends State<AkunScreen> {
                   ),
                 ],
               ),
+              const SizedBox(height: 8),
+              // Akun Utama
+              Row(
+                children: [
+                  Icon(
+                    namaAkun == akunUtama ? Icons.star : Icons.star_border,
+                    size: 18,
+                    color: namaAkun == akunUtama ? Colors.amber[700] : Colors.grey[600],
+                  ),
+                  const SizedBox(width: 10),
+                  Text("Akun Utama: ",
+                      style: TextStyle(color: Colors.grey[600], fontSize: 14)),
+                  Text(
+                    namaAkun == akunUtama ? "Ya" : "Tidak",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: namaAkun == akunUtama ? Colors.amber[800] : Colors.grey[800],
+                    ),
+                  ),
+                  if (namaAkun != akunUtama) ...[
+                    const Spacer(),
+                    TextButton.icon(
+                      icon: const Icon(Icons.star, size: 16, color: Colors.amber),
+                      label: const Text("Set Utama", style: TextStyle(color: Colors.amber)),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          akunUtama = namaAkun;
+                        });
+                        saveData();
+                        Navigator.pop(ctx);
+                      },
+                    ),
+                  ],
+                ],
+              ),
               const SizedBox(height: 24),
               // Action buttons
               Row(
@@ -168,33 +209,66 @@ class _AkunScreenState extends State<AkunScreen> {
 
   void _editAkun(int index) {
     final String oldNama = masterAkun[index];
+    final double oldSaldoAwal = saldoAwalMap[oldNama] ?? 0.0;
+
     final TextEditingController editController = TextEditingController(
       text: oldNama,
+    );
+    final TextEditingController saldoAwalController = TextEditingController(
+      text: oldSaldoAwal > 0 ? formatRibuan(oldSaldoAwal) : "",
     );
 
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text("Edit Akun/Dompet"),
-          content: TextField(
-            controller: editController,
-            decoration: InputDecoration(
-              labelText: "Nama Akun/Dompet",
-              border: OutlineInputBorder(),
-            ),
+          title: const Text("Edit Akun/Dompet"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: editController,
+                decoration: const InputDecoration(
+                  labelText: "Nama Akun/Dompet",
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: saldoAwalController,
+                keyboardType: TextInputType.number,
+                inputFormatters: [RibuanInputFormatter()],
+                decoration: const InputDecoration(
+                  labelText: "Saldo Awal (Rp)",
+                  prefixText: "Rp ",
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: Text("Batal"),
+              child: const Text("Batal"),
             ),
             ElevatedButton(
               onPressed: () {
                 if (editController.text.isNotEmpty) {
                   String newNama = editController.text;
+                  final String newSaldoAwalStr = saldoAwalController.text.replaceAll('.', '');
+                  final double newSaldoAwal = double.tryParse(newSaldoAwalStr) ?? 0.0;
+
                   setState(() {
                     masterAkun[index] = newNama;
+                    if (akunUtama == oldNama) {
+                      akunUtama = newNama;
+                    }
+                    // Update saldoAwalMap
+                    saldoAwalMap.remove(oldNama);
+                    if (newSaldoAwal > 0) {
+                      saldoAwalMap[newNama] = newSaldoAwal;
+                    }
+                    
                     // Update transaksi yang memakai akun ini
                     for (var t in daftarTransaksi) {
                       if (t.akun == oldNama) {
@@ -210,7 +284,7 @@ class _AkunScreenState extends State<AkunScreen> {
                 backgroundColor: Colors.green,
                 foregroundColor: Colors.white,
               ),
-              child: Text("Simpan"),
+              child: const Text("Simpan"),
             ),
           ],
         );
@@ -253,6 +327,11 @@ class _AkunScreenState extends State<AkunScreen> {
               onPressed: () {
                 setState(() {
                   masterAkun.removeAt(index);
+                  if (akunUtama == oldNama) {
+                    akunUtama = masterAkun.first;
+                  }
+                  // Hapus saldo awal
+                  saldoAwalMap.remove(oldNama);
                   // Update transaksi yang memakai akun ini ke akun pertama yang tersisa
                   for (var t in daftarTransaksi) {
                     if (t.akun == oldNama) {
@@ -324,9 +403,45 @@ class _AkunScreenState extends State<AkunScreen> {
                               color: Colors.blue,
                             ),
                           ),
-                          title: Text(
-                            akunNama,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          title: Row(
+                            children: [
+                              Text(
+                                akunNama,
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                              if (akunNama == akunUtama) ...[
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.amber.withValues(alpha: 0.2),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.star,
+                                        size: 10,
+                                        color: Colors.amber[800],
+                                      ),
+                                      const SizedBox(width: 2),
+                                      Text(
+                                        "UTAMA",
+                                        style: TextStyle(
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.amber[800],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                           subtitle: Text(
                             "Saldo: Rp ${formatRibuan(saldo.abs())}${!isPositif ? " (minus)" : ""}",

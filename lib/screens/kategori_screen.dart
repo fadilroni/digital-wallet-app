@@ -346,6 +346,22 @@ class _KategoriScreenState extends State<KategoriScreen>
     );
   }
 
+  void _onReorder(String tipe, int oldIndex, int newIndex) {
+    setState(() {
+      if (oldIndex < newIndex) {
+        newIndex -= 1;
+      }
+      final targetList = masterKategori.where((k) => k.tipe == tipe).toList();
+      final otherList = masterKategori.where((k) => k.tipe != tipe).toList();
+
+      final item = targetList.removeAt(oldIndex);
+      targetList.insert(newIndex, item);
+
+      masterKategori = [...otherList, ...targetList];
+    });
+    saveData();
+  }
+
   /// Membangun daftar kategori untuk satu tipe tertentu
   Widget _buildList(String tipe) {
     final list = masterKategori.where((k) => k.tipe == tipe).toList();
@@ -370,18 +386,27 @@ class _KategoriScreenState extends State<KategoriScreen>
       );
     }
 
-    return ListView.builder(
+    return ReorderableListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       itemCount: list.length,
+      onReorder: (oldIdx, newIdx) => _onReorder(tipe, oldIdx, newIdx),
       itemBuilder: (context, index) {
         final item = list[index];
         return Card(
+          key: ValueKey(item.nama),
           margin: const EdgeInsets.symmetric(vertical: 5),
           child: ListTile(
             onTap: () => _showDetailKategori(item, bgColor, accentColor),
-            leading: CircleAvatar(
-              backgroundColor: bgColor,
-              child: Icon(item.ikon, color: Colors.white),
+            leading: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.drag_handle, color: Colors.grey),
+                const SizedBox(width: 8),
+                CircleAvatar(
+                  backgroundColor: bgColor,
+                  child: Icon(item.ikon, color: Colors.white),
+                ),
+              ],
             ),
             title: Text(item.nama,
                 style: const TextStyle(fontWeight: FontWeight.w600)),
@@ -436,6 +461,7 @@ class _KategoriScreenState extends State<KategoriScreen>
         Expanded(
           child: TabBarView(
             controller: _tabController,
+            physics: const NeverScrollableScrollPhysics(),
             children: [
               _buildList("Pengeluaran"),
               _buildList("Pemasukan"),

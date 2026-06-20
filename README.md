@@ -1,4 +1,4 @@
-# dompet_pribadi
+# Dompet Digital
 
 A new Flutter project.
 

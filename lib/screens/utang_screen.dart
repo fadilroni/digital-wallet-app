@@ -45,7 +45,7 @@ class _UtangScreenState extends State<UtangScreen> {
     _dariController.clear();
     String pilihanTipe = "Piutang";
     DateTime pilihanTanggal = DateTime.now();
-    String pilihanAkun = masterAkun.isNotEmpty ? masterAkun.first : "Tunai";
+    String pilihanAkun = (akunUtama.isNotEmpty && masterAkun.contains(akunUtama)) ? akunUtama : (masterAkun.isNotEmpty ? masterAkun.first : "Tunai");
 
     showDialog(
       context: context,
@@ -522,7 +522,7 @@ class _DetailUtangScreenState extends State<_DetailUtangScreen> {
     _nominalCtrl.clear();
     _catatanCtrl.clear();
     DateTime tgl = DateTime.now();
-    String pilihanAkun = masterAkun.isNotEmpty ? masterAkun.first : "Tunai";
+    String pilihanAkun = (akunUtama.isNotEmpty && masterAkun.contains(akunUtama)) ? akunUtama : (masterAkun.isNotEmpty ? masterAkun.first : "Tunai");
 
     showDialog(
       context: context,
@@ -672,7 +672,7 @@ class _DetailUtangScreenState extends State<_DetailUtangScreen> {
     final saldo = widget.kontak.saldo;
     if (saldo == 0) return;
     final isPiutang = saldo > 0;
-    String pilihanAkun = masterAkun.isNotEmpty ? masterAkun.first : "Tunai";
+    String pilihanAkun = (akunUtama.isNotEmpty && masterAkun.contains(akunUtama)) ? akunUtama : (masterAkun.isNotEmpty ? masterAkun.first : "Tunai");
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(

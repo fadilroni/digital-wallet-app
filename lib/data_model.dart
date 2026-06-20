@@ -159,6 +159,9 @@ List<IconData> daftarPilihanIkon = [
 // DATA GLOBAL (akan diisi oleh database Hive saat aplikasi dimulai)
 List<KategoriModel> masterKategori = [];
 List<String> masterAkun = [];
+String akunUtama = "";
+double limitPengeluaran = 0.0;
+Map<String, double> saldoAwalMap = {};
 List<Transaksi> daftarTransaksi = [];
 List<KontakUtang> daftarKontakUtang = [];
 List<Asset> daftarAsset = [];
@@ -310,6 +313,9 @@ void saveData() {
   box.put('transaksi', transaksiMaps);
   box.put('kategori', kategoriMaps);
   box.put('akun', masterAkun);
+  box.put('akunUtama', akunUtama);
+  box.put('limitPengeluaran', limitPengeluaran);
+  box.put('saldoAwalMap', saldoAwalMap);
   box.put('kontakUtang', kontakUtangMaps);
   box.put('asset', assetMaps);
   box.put('isHideSaldo', isHideSaldoGlobal);
@@ -328,6 +334,25 @@ void loadData() {
     masterAkun = List<String>.from(savedAkun);
   } else {
     masterAkun = ["Tunai", "SeaBank", "SuperBank", "Krom Bank"];
+  }
+
+  // Load Akun Utama
+  akunUtama = box.get('akunUtama', defaultValue: '');
+  if ((akunUtama.isEmpty || !masterAkun.contains(akunUtama)) && masterAkun.isNotEmpty) {
+    akunUtama = masterAkun.first;
+  }
+
+  // Load Limit Pengeluaran
+  limitPengeluaran = box.get('limitPengeluaran', defaultValue: 0.0) as double;
+
+  // Load Saldo Awal Map
+  final Map<dynamic, dynamic>? savedSaldoAwal = box.get('saldoAwalMap');
+  if (savedSaldoAwal != null) {
+    saldoAwalMap = Map<String, double>.from(
+      savedSaldoAwal.map((k, v) => MapEntry(k.toString(), (v as num).toDouble())),
+    );
+  } else {
+    saldoAwalMap = {};
   }
 
   // Load Kategori (jika kosong, buat default)
@@ -442,6 +467,9 @@ Future<String?> exportData() async {
       'transaksi': daftarTransaksi.map((t) => transaksiToMap(t)).toList(),
       'kategori': masterKategori.map((k) => kategoriToMap(k)).toList(),
       'akun': masterAkun,
+      'akunUtama': akunUtama,
+      'limitPengeluaran': limitPengeluaran,
+      'saldoAwalMap': saldoAwalMap,
       'kontakUtang': daftarKontakUtang.map((k) => kontakUtangToMap(k)).toList(),
       'asset': daftarAsset.map((a) => assetToMap(a)).toList(),
     };
@@ -475,6 +503,16 @@ Future<String> importData() async {
       final List<dynamic> importedTransaksi = importMap['transaksi'];
 
       masterAkun = List<String>.from(importedAkun);
+      akunUtama = importMap['akunUtama'] ?? (masterAkun.isNotEmpty ? masterAkun.first : '');
+      limitPengeluaran = (importMap['limitPengeluaran'] ?? 0.0) as double;
+      final Map<dynamic, dynamic>? importedSaldoAwal = importMap['saldoAwalMap'];
+      if (importedSaldoAwal != null) {
+        saldoAwalMap = Map<String, double>.from(
+          importedSaldoAwal.map((k, v) => MapEntry(k.toString(), (v as num).toDouble())),
+        );
+      } else {
+        saldoAwalMap = {};
+      }
       masterKategori = importedKategori
           .map((k) => kategoriFromMap(k as Map))
           .toList();

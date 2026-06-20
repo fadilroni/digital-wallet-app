@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.dompet_pribadi"
+    namespace = "com.example.dompet_digital"
     compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
@@ -16,7 +16,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.dompet_pribadi"
+        applicationId = "com.example.dompet_digital"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
@@ -42,4 +42,26 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+tasks.whenTaskAdded {
+    if (name == "assembleRelease") {
+        finalizedBy("renameReleaseApk")
+    }
+}
+
+tasks.register("renameReleaseApk") {
+    doLast {
+        val apkDir = file("$buildDir/outputs/flutter-apk")
+        val oldApk = File(apkDir, "app-release.apk")
+
+        if (oldApk.exists()) {
+            val newApk = File(
+                apkDir,
+                "DompetDigital-v${android.defaultConfig.versionName}.apk"
+            )
+
+            oldApk.renameTo(newApk)
+        }
+    }
 }

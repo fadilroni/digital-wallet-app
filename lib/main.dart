@@ -14,7 +14,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Aplikasi Keuangan Pribadi',
+      title: 'Aplikasi Dompet Digital',
       theme: ThemeData(
         brightness: Brightness.light,
         primarySwatch: Colors.green,
