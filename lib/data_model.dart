@@ -451,13 +451,85 @@ void loadData() {
 
 // Mendapatkan path file backup
 
-Future<File> getBackupFile() async {
+Future<File> getBackupFile({String? filename}) async {
   Directory? dir;
   if (Platform.isAndroid) {
     dir = await getExternalStorageDirectory();
   }
   dir ??= await getApplicationDocumentsDirectory();
-  return File('${dir.path}/dompet_pribadi_backup.json');
+  final actualFilename = filename ?? 'dompet_pribadi_backup.json';
+  return File('${dir.path}/$actualFilename');
+}
+
+// Mendapatkan daftar file backup yang tersedia
+Future<List<File>> getAvailableBackupFiles() async {
+  List<File> backupFiles = [];
+  try {
+    Directory? dir;
+    if (Platform.isAndroid) {
+      dir = await getExternalStorageDirectory();
+    }
+    dir ??= await getApplicationDocumentsDirectory();
+
+    List<Directory> searchDirs = [];
+    searchDirs.add(dir);
+
+    if (Platform.isAndroid) {
+      final currentPath = dir.path;
+      final packages = [
+        'com.example.dompet_pribadi',
+        'com.example.dompet_digital',
+        'app.bantudigital.dompet_digital'
+      ];
+      for (final pkg in packages) {
+        String checkPath = currentPath;
+        if (currentPath.contains('app.bantudigital.dompet_digital')) {
+          checkPath = currentPath.replaceFirst('app.bantudigital.dompet_digital', pkg);
+        } else if (currentPath.contains('com.example.dompet_digital')) {
+          checkPath = currentPath.replaceFirst('com.example.dompet_digital', pkg);
+        } else if (currentPath.contains('com.example.dompet_pribadi')) {
+          checkPath = currentPath.replaceFirst('com.example.dompet_pribadi', pkg);
+        }
+        final checkDir = Directory(checkPath);
+        if (checkDir.path != dir.path) {
+          searchDirs.add(checkDir);
+        }
+      }
+    }
+
+    for (var d in searchDirs) {
+      if (await d.exists()) {
+        final List<FileSystemEntity> entities = d.listSync();
+        for (var entity in entities) {
+          if (entity is File) {
+            final name = entity.path.split(Platform.pathSeparator).last;
+            if (name == 'dompet_pribadi_backup.json' ||
+                (name.startsWith('dompet_pribadi_backup_') && name.endsWith('.json'))) {
+              if (!backupFiles.any((f) => f.path.split(Platform.pathSeparator).last == name)) {
+                backupFiles.add(entity);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Urutkan file berdasarkan waktu modifikasi terbaru dahulu
+    List<Map<String, dynamic>> fileWithDate = [];
+    for (var file in backupFiles) {
+      try {
+        final modTime = await file.lastModified();
+        fileWithDate.add({'file': file, 'date': modTime});
+      } catch (_) {
+        fileWithDate.add({'file': file, 'date': DateTime(1970)});
+      }
+    }
+    fileWithDate.sort((a, b) => (b['date'] as DateTime).compareTo(a['date'] as DateTime));
+    return fileWithDate.map((item) => item['file'] as File).toList();
+  } catch (e) {
+    print('Gagal mengambil daftar file backup: $e');
+  }
+  return [];
 }
 
 // Eksport data ke JSON
@@ -475,7 +547,13 @@ Future<String?> exportData() async {
     };
 
     final jsonString = jsonEncode(exportMap);
-    final file = await getBackupFile();
+    
+    // Penamaan file backup unik dengan tanggal dan waktu
+    final now = DateTime.now();
+    final dateStr = "${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}";
+    final filename = "dompet_pribadi_backup_$dateStr.json";
+
+    final file = await getBackupFile(filename: filename);
     await file.writeAsString(jsonString);
     return file.path;
   } catch (e) {
@@ -485,36 +563,41 @@ Future<String?> exportData() async {
 }
 
 // Import data dari JSON
-Future<String> importData() async {
+Future<String> importData({File? selectedFile}) async {
   try {
-    File file = await getBackupFile();
+    File file;
+    if (selectedFile != null) {
+      file = selectedFile;
+    } else {
+      file = await getBackupFile();
 
-    if (Platform.isAndroid) {
-      final currentPath = file.path;
-      final packages = [
-        'com.example.dompet_pribadi',
-        'com.example.dompet_digital',
-        'app.bantudigital.dompet_digital'
-      ];
+      if (Platform.isAndroid) {
+        final currentPath = file.path;
+        final packages = [
+          'com.example.dompet_pribadi',
+          'com.example.dompet_digital',
+          'app.bantudigital.dompet_digital'
+        ];
 
-      for (final pkg in packages) {
-        String checkPath = currentPath;
-        if (currentPath.contains('app.bantudigital.dompet_digital')) {
-          checkPath = currentPath.replaceFirst('app.bantudigital.dompet_digital', pkg);
-        } else if (currentPath.contains('com.example.dompet_digital')) {
-          checkPath = currentPath.replaceFirst('com.example.dompet_digital', pkg);
-        } else if (currentPath.contains('com.example.dompet_pribadi')) {
-          checkPath = currentPath.replaceFirst('com.example.dompet_pribadi', pkg);
-        }
-
-        final checkFile = File(checkPath);
-        try {
-          if (await checkFile.exists()) {
-            await checkFile.readAsString();
-            file = checkFile;
-            break;
+        for (final pkg in packages) {
+          String checkPath = currentPath;
+          if (currentPath.contains('app.bantudigital.dompet_digital')) {
+            checkPath = currentPath.replaceFirst('app.bantudigital.dompet_digital', pkg);
+          } else if (currentPath.contains('com.example.dompet_digital')) {
+            checkPath = currentPath.replaceFirst('com.example.dompet_digital', pkg);
+          } else if (currentPath.contains('com.example.dompet_pribadi')) {
+            checkPath = currentPath.replaceFirst('com.example.dompet_pribadi', pkg);
           }
-        } catch (_) {}
+
+          final checkFile = File(checkPath);
+          try {
+            if (await checkFile.exists()) {
+              await checkFile.readAsString();
+              file = checkFile;
+              break;
+            }
+          } catch (_) {}
+        }
       }
     }
 

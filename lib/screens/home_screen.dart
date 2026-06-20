@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:io';
 import '../data_model.dart';
 import 'kategori_screen.dart';
 import 'akun_screen.dart';
@@ -468,6 +469,287 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _showImportSelectionDialog() async {
+    // Show loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(color: Colors.green),
+      ),
+    );
+
+    List<File> files = await getAvailableBackupFiles();
+    if (!mounted) return;
+    Navigator.pop(context); // close loading
+
+    if (files.isEmpty) {
+      final defaultFile = await getBackupFile();
+      if (!mounted) return;
+      String displayPath = defaultFile.path;
+      if (displayPath.contains('Android/data/')) {
+        displayPath = displayPath.substring(displayPath.indexOf('Android/data/'));
+      }
+
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.warning, color: Colors.orange),
+              SizedBox(width: 8),
+              Text("Backup Tidak Ditemukan"),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                "Tidak ditemukan file backup (.json) di folder aplikasi Anda.",
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                "Jika Anda memindahkan file dari HP lain, pastikan diletakkan di folder internal:",
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey[300]!),
+                ),
+                child: Text(
+                  displayPath,
+                  style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                "Catatan Android 11+:\nFolder Android/data mungkin tersembunyi. Hubungkan HP ke PC via USB untuk memindahkan file, atau gunakan aplikasi file manager yang mendukung akses Android/data.",
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Tutup"),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    // Show selection bottom sheet
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+            24,
+            20,
+            24,
+            MediaQuery.of(ctx).viewInsets.bottom + 32,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  const Icon(Icons.download, color: Colors.green, size: 28),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          "Pilih File Backup",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 20,
+                          ),
+                        ),
+                        Text(
+                          "Ditemukan ${files.length} file backup",
+                          style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.4,
+                ),
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: files.length,
+                  itemBuilder: (context, index) {
+                    final File file = files[index];
+                    final String fullPath = file.path;
+                    final String filename = fullPath.split(Platform.pathSeparator).last;
+
+                    String displayDate = "";
+                    try {
+                      final stat = file.statSync();
+                      final dt = stat.modified;
+                      final day = dt.day.toString().padLeft(2, '0');
+                      final month = dt.month.toString().padLeft(2, '0');
+                      final year = dt.year;
+                      final hour = dt.hour.toString().padLeft(2, '0');
+                      final minute = dt.minute.toString().padLeft(2, '0');
+                      displayDate = "$day/$month/$year $hour:$minute";
+                    } catch (_) {
+                      displayDate = "Waktu modifikasi tidak diketahui";
+                    }
+
+                    String sourceApp = "";
+                    if (fullPath.contains('com.example.dompet_pribadi')) {
+                      sourceApp = " (Lama: Dompet Pribadi)";
+                    } else if (fullPath.contains('com.example.dompet_digital')) {
+                      sourceApp = " (Lama: Dompet Digital)";
+                    } else if (fullPath.contains('app.bantudigital.dompet_digital')) {
+                      sourceApp = " (Aplikasi Sekarang)";
+                    }
+
+                    return Card(
+                      margin: const EdgeInsets.symmetric(vertical: 6),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: BorderSide(color: Colors.grey[300]!),
+                      ),
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        leading: CircleAvatar(
+                          backgroundColor: Colors.green.withOpacity(0.1),
+                          child: const Icon(Icons.description, color: Colors.green),
+                        ),
+                        title: Text(
+                          filename,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 4),
+                            Text(
+                              displayDate,
+                              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                            ),
+                            if (sourceApp.isNotEmpty) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                sourceApp,
+                                style: const TextStyle(fontSize: 11, color: Colors.blue, fontWeight: FontWeight.w500),
+                              ),
+                            ],
+                          ],
+                        ),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () {
+                          Navigator.pop(ctx); // Close bottom sheet
+                          _confirmAndImport(file);
+                        },
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text("Batal", style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _confirmAndImport(File file) {
+    final filename = file.path.split(Platform.pathSeparator).last;
+    showDialog(
+      context: context,
+      builder: (dialogCtx) {
+        return AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.red),
+              SizedBox(width: 8),
+              Text("Konfirmasi Impor"),
+            ],
+          ),
+          content: Text("Menghidupkan data dari file:\n$filename\n\nSemua data saat ini di aplikasi akan ditimpa. Lanjutkan?"),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx),
+              child: const Text("Batal"),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () async {
+                Navigator.pop(dialogCtx); // close confirm dialog
+
+                // show loading
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (loadingCtx) => const Center(
+                    child: CircularProgressIndicator(color: Colors.green),
+                  ),
+                );
+
+                String result = await importData(selectedFile: file);
+                if (!mounted) return;
+                Navigator.pop(context); // close loading
+
+                final messenger = ScaffoldMessenger.of(context);
+                if (result == "success") {
+                  setState(() {});
+                  messenger.showSnackBar(
+                    const SnackBar(content: Text('Data berhasil diimpor!')),
+                  );
+                } else {
+                  messenger.showSnackBar(
+                    const SnackBar(content: Text('Gagal mengimpor data.')),
+                  );
+                }
+              },
+              child: const Text("Ya, Impor"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   void _showSettingsDialog() {
     final TextEditingController limitCtrl = TextEditingController(
       text: limitPengeluaran > 0 ? formatRibuan(limitPengeluaran) : "",
@@ -616,13 +898,13 @@ class _HomeScreenState extends State<HomeScreen> {
                               String? path = await exportData();
                               if (path != null) {
                                 String displayPath = path;
-                                if (path.contains('/Android/data/')) {
-                                  displayPath = 'Android/data/.../' + path.split('/').last;
+                                if (path.contains('Android/data/')) {
+                                  displayPath = path.substring(path.indexOf('Android/data/'));
                                 }
                                 messenger.showSnackBar(
                                   SnackBar(
-                                    content: Text('Backup berhasil diekspor ke:\n$displayPath'),
-                                    duration: const Duration(seconds: 6),
+                                    content: Text('Backup berhasil diekspor ke:\n$displayPath\n\nCatatan: Hubungkan HP ke PC via USB jika tidak menemukan foldernya.'),
+                                    duration: const Duration(seconds: 8),
                                   ),
                                 );
                               } else {
@@ -645,32 +927,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                 borderRadius: BorderRadius.circular(12),
                               ),
                             ),
-                            onPressed: () async {
+                            onPressed: () {
                               Navigator.pop(ctx);
-                              final messenger = ScaffoldMessenger.of(context);
-                              String result = await importData();
-                              if (result == "success") {
-                                setState(() {});
-                                messenger.showSnackBar(
-                                  const SnackBar(content: Text('Data berhasil diimpor!')),
-                                );
-                              } else if (result == "not_found") {
-                                final file = await getBackupFile();
-                                String displayPath = file.path;
-                                if (displayPath.contains('/Android/data/')) {
-                                  displayPath = 'Android/data/.../' + displayPath.split('/').last;
-                                }
-                                messenger.showSnackBar(
-                                  SnackBar(
-                                    content: Text('File backup tidak ditemukan.\nLetakkan file backup di:\n$displayPath'),
-                                    duration: const Duration(seconds: 6),
-                                  ),
-                                );
-                              } else {
-                                messenger.showSnackBar(
-                                  const SnackBar(content: Text('Gagal mengimpor data.')),
-                                );
-                              }
+                              _showImportSelectionDialog();
                             },
                           ),
                         ),
@@ -1611,86 +1870,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   icon: const Icon(Icons.settings_outlined),
                   tooltip: "Pengaturan",
                   onPressed: _showSettingsDialog,
-                ),
-                PopupMenuButton<String>(
-                  onSelected: (value) async {
-                    final messenger = ScaffoldMessenger.of(context);
-                    if (value == 'export') {
-                      String? path = await exportData();
-                      if (path != null) {
-                        String displayPath = path;
-                        if (path.contains('/Android/data/')) {
-                          displayPath =
-                              'Android/data/.../' + path.split('/').last;
-                        }
-                        messenger.showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              'Backup berhasil diekspor ke:\n$displayPath',
-                            ),
-                            duration: Duration(seconds: 6),
-                          ),
-                        );
-                      } else {
-                        messenger.showSnackBar(
-                          SnackBar(content: Text('Gagal mengekspor data.')),
-                        );
-                      }
-                    } else if (value == 'import') {
-                      String result = await importData();
-                      if (result == "success") {
-                        setState(() {}); // refresh UI
-                        messenger.showSnackBar(
-                          SnackBar(content: Text('Data berhasil diimpor!')),
-                        );
-                      } else if (result == "not_found") {
-                        final file = await getBackupFile();
-                        String displayPath = file.path;
-                        if (displayPath.contains('/Android/data/')) {
-                          displayPath =
-                              'Android/data/.../' + displayPath.split('/').last;
-                        }
-                        messenger.showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              'File backup tidak ditemukan.\nLetakkan file backup di:\n$displayPath',
-                            ),
-                            duration: Duration(seconds: 7),
-                          ),
-                        );
-                      } else {
-                        messenger.showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              'Format data backup tidak valid atau gagal dibaca.',
-                            ),
-                          ),
-                        );
-                      }
-                    }
-                  },
-                  itemBuilder: (BuildContext context) => [
-                    PopupMenuItem(
-                      value: 'export',
-                      child: Row(
-                        children: [
-                          Icon(Icons.upload, color: Colors.blue),
-                          SizedBox(width: 8),
-                          Text('Ekspor Data (Backup)'),
-                        ],
-                      ),
-                    ),
-                    PopupMenuItem(
-                      value: 'import',
-                      child: Row(
-                        children: [
-                          Icon(Icons.download, color: Colors.green),
-                          SizedBox(width: 8),
-                          Text('Impor Data (Restore)'),
-                        ],
-                      ),
-                    ),
-                  ],
                 ),
               ]
             : null,
