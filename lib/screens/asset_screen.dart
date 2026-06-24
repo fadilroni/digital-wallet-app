@@ -1162,29 +1162,9 @@ class _AssetScreenState extends State<AssetScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Total Portofolio Asset',
-                style: TextStyle(color: Colors.white70, fontSize: 13),
-              ),
-              IconButton(
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                onPressed: () {
-                  setState(() {
-                    isHideSaldoGlobal = !isHideSaldoGlobal;
-                  });
-                  saveData();
-                },
-                icon: Icon(
-                  isHideSaldoGlobal ? Icons.visibility_off : Icons.visibility,
-                  color: Colors.white70,
-                  size: 18,
-                ),
-              ),
-            ],
+          const Text(
+            'Total Portofolio Asset',
+            style: TextStyle(color: Colors.white70, fontSize: 13),
           ),
           const SizedBox(height: 6),
           Text(
@@ -1656,18 +1636,14 @@ class _AssetScreenState extends State<AssetScreen> {
                     'Harga Beli',
                     _hargaLive[a.symbol] == null
                         ? '—'
-                        : (isHideSaldoGlobal
-                              ? 'Rp ••••••••'
-                              : 'Rp ${_fmt(_hargaLive[a.symbol]!.buy)}'),
+                        : 'Rp ${_fmt(_hargaLive[a.symbol]!.buy)}',
                     Colors.grey[600]!,
                   ),
                   _detailItem(
                     'Harga Jual',
                     _hargaLive[a.symbol] == null
                         ? '—'
-                        : (isHideSaldoGlobal
-                              ? 'Rp ••••••••'
-                              : 'Rp ${_fmt(_hargaLive[a.symbol]!.sell)}'),
+                        : 'Rp ${_fmt(_hargaLive[a.symbol]!.sell)}',
                     Colors.grey[600]!,
                   ),
                 ],
@@ -1677,18 +1653,14 @@ class _AssetScreenState extends State<AssetScreen> {
                 children: [
                   _detailItem(
                     'Rata-rata Beli',
-                    isHideSaldoGlobal
-                        ? 'Rp ••••••••'
-                        : 'Rp ${_fmt(a.buyPrice)}',
+                    'Rp ${_fmt(a.buyPrice)}',
                     Colors.grey[600]!,
                   ),
                   _detailItem(
                     'Harga Kini',
                     hargaSekarang == null
                         ? '—'
-                        : (isHideSaldoGlobal
-                              ? 'Rp ••••••••'
-                              : 'Rp ${_fmt(hargaSekarang.last)}'),
+                        : 'Rp ${_fmt(hargaSekarang.last)}',
                     Colors.grey[600]!,
                   ),
                   _detailItem(

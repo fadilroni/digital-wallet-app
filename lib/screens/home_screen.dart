@@ -21,7 +21,6 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _nominalController = TextEditingController();
   final TextEditingController _catatanController = TextEditingController();
-  bool isHideSaldo = isHideSaldoGlobal;
 
   late final PageController _pageController;
 
@@ -1378,7 +1377,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            isHideSaldo
+                            isHideSaldoGlobal
                                 ? "Rp ••••••••"
                                 : "Rp ${formatRibuan(totalPemasukan)}",
                             style: const TextStyle(
@@ -1402,7 +1401,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            isHideSaldo
+                            isHideSaldoGlobal
                                 ? "Rp ••••••••"
                                 : "Rp ${formatRibuan(totalPengeluaran)}",
                             style: const TextStyle(
@@ -1521,22 +1520,23 @@ class _HomeScreenState extends State<HomeScreen> {
         title: Text(appBarTitle),
         automaticallyImplyLeading: false,
         actions: [
-          if (_currentIndex == 0) ...[
+          if (_currentIndex == 0 || _currentIndex == 3) ...[
             IconButton(
               icon: Icon(
-                isHideSaldo
+                isHideSaldoGlobal
                     ? Icons.visibility_off_outlined
                     : Icons.visibility_outlined,
               ),
-              tooltip: isHideSaldo ? "Tampilkan Saldo" : "Sembunyikan Saldo",
+              tooltip: isHideSaldoGlobal ? "Tampilkan Saldo" : "Sembunyikan Saldo",
               onPressed: () {
                 setState(() {
-                  isHideSaldo = !isHideSaldo;
-                  isHideSaldoGlobal = isHideSaldo;
+                  isHideSaldoGlobal = !isHideSaldoGlobal;
                 });
                 saveData();
               },
             ),
+          ],
+          if (_currentIndex == 0) ...[
             IconButton(
               icon: const Icon(Icons.file_download_outlined),
               tooltip: "Ekspor Excel",
@@ -1546,11 +1546,12 @@ class _HomeScreenState extends State<HomeScreen> {
           IconButton(
             icon: const Icon(Icons.settings),
             tooltip: "Pengaturan",
-            onPressed: () {
-              Navigator.push(
+            onPressed: () async {
+              await Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const SettingsScreen()),
               );
+              setState(() {});
             },
           ),
         ],
