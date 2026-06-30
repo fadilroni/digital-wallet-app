@@ -804,6 +804,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     TextField(
+                      autofocus: true,
                       controller: _nominalController,
                       keyboardType: TextInputType.number,
                       inputFormatters: [RibuanInputFormatter()],
@@ -1527,7 +1528,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     ? Icons.visibility_off_outlined
                     : Icons.visibility_outlined,
               ),
-              tooltip: isHideSaldoGlobal ? "Tampilkan Saldo" : "Sembunyikan Saldo",
+              tooltip: isHideSaldoGlobal
+                  ? "Tampilkan Saldo"
+                  : "Sembunyikan Saldo",
               onPressed: () {
                 setState(() {
                   isHideSaldoGlobal = !isHideSaldoGlobal;
