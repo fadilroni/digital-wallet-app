@@ -153,6 +153,35 @@ class KontakUtang {
   }
 }
 
+class RecurringReminder {
+  String id;
+  String title;
+  String kategori;
+  String akun;
+  double nominal;
+  String recurrenceType; // Bulanan, Mingguan, Harian, Custom
+  int customIntervalDays;
+  DateTime nextDue;
+  bool enabled;
+  String note;
+
+  RecurringReminder({
+    required this.id,
+    required this.title,
+    required this.kategori,
+    required this.akun,
+    required this.nominal,
+    required this.recurrenceType,
+    required this.customIntervalDays,
+    required this.nextDue,
+    required this.enabled,
+    this.note = '',
+  });
+}
+
+List<RecurringReminder> daftarPengingatRutin = [];
+bool enableRecurringReminderGlobal = false;
+
 // DAFTAR PILIHAN LOGO/IKON YANG BISA DIPILIH USER
 List<IconData> daftarPilihanIkon = [
   Icons.fastfood, // Makanan
@@ -355,6 +384,36 @@ KategoriModel kategoriFromMap(Map<dynamic, dynamic> map) {
   );
 }
 
+Map<String, dynamic> recurringReminderToMap(RecurringReminder r) {
+  return {
+    'id': r.id,
+    'title': r.title,
+    'kategori': r.kategori,
+    'akun': r.akun,
+    'nominal': r.nominal,
+    'recurrenceType': r.recurrenceType,
+    'customIntervalDays': r.customIntervalDays,
+    'nextDue': r.nextDue.toIso8601String(),
+    'enabled': r.enabled,
+    'note': r.note,
+  };
+}
+
+RecurringReminder recurringReminderFromMap(Map<dynamic, dynamic> map) {
+  return RecurringReminder(
+    id: map['id'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
+    title: map['title'] ?? '',
+    kategori: map['kategori'] ?? '',
+    akun: map['akun'] ?? '',
+    nominal: (map['nominal'] as num?)?.toDouble() ?? 0.0,
+    recurrenceType: map['recurrenceType'] ?? 'Bulanan',
+    customIntervalDays: (map['customIntervalDays'] as num?)?.toInt() ?? 7,
+    nextDue: DateTime.tryParse(map['nextDue'] ?? '') ?? DateTime.now(),
+    enabled: map['enabled'] as bool? ?? true,
+    note: map['note'] ?? '',
+  );
+}
+
 // Inisialisasi Database Hive
 Future<void> initDatabase() async {
   await Hive.initFlutter();
@@ -372,6 +431,9 @@ void saveData() {
       .map((k) => kontakUtangToMap(k))
       .toList();
   final assetMaps = daftarAsset.map((a) => assetToMap(a)).toList();
+  final reminderMaps = daftarPengingatRutin
+      .map((r) => recurringReminderToMap(r))
+      .toList();
 
   box.put('transaksi', transaksiMaps);
   box.put('kategori', kategoriMaps);
@@ -382,6 +444,8 @@ void saveData() {
   box.put('kontakUtang', kontakUtangMaps);
   box.put('asset', assetMaps);
   box.put('isHideSaldo', isHideSaldoGlobal);
+  box.put('recurringReminderEnabled', enableRecurringReminderGlobal);
+  box.put('recurringReminders', reminderMaps);
 }
 
 // Memuat data dari Hive
@@ -414,6 +478,8 @@ void loadData() {
 
   // Load Limit Pengeluaran
   limitPengeluaran = box.get('limitPengeluaran', defaultValue: 0.0) as double;
+  enableRecurringReminderGlobal =
+      box.get('recurringReminderEnabled', defaultValue: false) as bool;
 
   // Load Saldo Awal Map
   final Map<dynamic, dynamic>? savedSaldoAwal = box.get('saldoAwalMap');
@@ -621,6 +687,16 @@ void loadData() {
     daftarAsset = [];
   }
 
+  // Load Recurring Reminders
+  final List<dynamic>? savedReminders = box.get('recurringReminders');
+  if (savedReminders != null) {
+    daftarPengingatRutin = savedReminders
+        .map((r) => recurringReminderFromMap(r as Map))
+        .toList();
+  } else {
+    daftarPengingatRutin = [];
+  }
+
   // Simpan data (untuk menyimpan migrasi kategori jika ada perubahan)
   saveData();
 }
@@ -700,6 +776,10 @@ Future<String?> exportData() async {
       'saldoAwalMap': saldoAwalMap,
       'kontakUtang': daftarKontakUtang.map((k) => kontakUtangToMap(k)).toList(),
       'asset': daftarAsset.map((a) => assetToMap(a)).toList(),
+      'recurringReminderEnabled': enableRecurringReminderGlobal,
+      'recurringReminders': daftarPengingatRutin
+          .map((r) => recurringReminderToMap(r))
+          .toList(),
     };
 
     final jsonString = jsonEncode(exportMap);
@@ -784,6 +864,22 @@ Future<String> importData({File? selectedFile}) async {
         daftarAsset = importedAsset.map((a) => assetFromMap(a as Map)).toList();
       } else {
         daftarAsset = [];
+      }
+
+      if (importMap.containsKey('recurringReminderEnabled')) {
+        enableRecurringReminderGlobal =
+            importMap['recurringReminderEnabled'] as bool? ?? false;
+      } else {
+        enableRecurringReminderGlobal = false;
+      }
+
+      if (importMap.containsKey('recurringReminders')) {
+        final List<dynamic> importedReminders = importMap['recurringReminders'];
+        daftarPengingatRutin = importedReminders
+            .map((r) => recurringReminderFromMap(r as Map))
+            .toList();
+      } else {
+        daftarPengingatRutin = [];
       }
 
       saveData();

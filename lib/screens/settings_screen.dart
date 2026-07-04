@@ -7,6 +7,8 @@ import 'package:open_filex/open_filex.dart';
 import '../data_model.dart';
 import 'kategori_screen.dart';
 import 'akun_screen.dart';
+import 'recurring_reminder_screen.dart';
+import '../notification_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -17,6 +19,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   bool isHideSaldo = isHideSaldoGlobal;
+  bool enableRecurringReminder = enableRecurringReminderGlobal;
   final TextEditingController limitCtrl = TextEditingController();
   bool enableLimit = false;
 
@@ -28,6 +31,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     enableLimit = limitPengeluaran > 0;
+    enableRecurringReminder = enableRecurringReminderGlobal;
     if (enableLimit) {
       limitCtrl.text = formatRibuan(limitPengeluaran);
     }
@@ -753,7 +757,60 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const Divider(height: 32),
 
-          // SECTION 3: CADANGAN DATA
+          // SECTION 3: PENGINGAT RUTIN
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 8.0,
+            ),
+            child: Text(
+              "PENGINGAT RUTIN",
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          SwitchListTile(
+            title: const Text("Aktifkan Pengingat Tagihan Rutin"),
+            subtitle: const Text(
+              "Tampilkan notifikasi pengingat tagihan rutin dan transfer",
+            ),
+            value: enableRecurringReminder,
+            activeColor: Colors.green,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16.0),
+            onChanged: (val) async {
+              setState(() {
+                enableRecurringReminder = val;
+                enableRecurringReminderGlobal = val;
+              });
+              if (val) {
+                await NotificationService.instance.requestPermission();
+                await NotificationService.instance.scheduleAllReminders();
+              } else {
+                await NotificationService.instance.cancelAllReminders();
+              }
+              saveData();
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.schedule),
+            title: const Text('Kelola Pengingat Rutin'),
+            subtitle: const Text('Tambah atau edit tagihan rutin'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const RecurringReminderScreen(),
+                ),
+              ).then((_) => setState(() {}));
+            },
+          ),
+          const Divider(height: 32),
+
+          // SECTION 4: CADANGAN DATA
           Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: 16.0,
@@ -859,6 +916,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             } else {
               limitPengeluaran = 0.0;
             }
+            enableRecurringReminderGlobal = enableRecurringReminder;
           });
           saveData();
           ScaffoldMessenger.of(

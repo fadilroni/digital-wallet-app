@@ -1,10 +1,17 @@
 import 'package:flutter/material.dart';
 import 'screens/home_screen.dart';
 import 'data_model.dart';
+import 'notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initDatabase();
+  await NotificationService.instance.init(
+    onTapPayload: (payload) async {
+      processRecurringReminder(payload);
+    },
+  );
+  await NotificationService.instance.scheduleAllReminders();
   runApp(MyApp());
 }
 

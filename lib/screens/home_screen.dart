@@ -78,6 +78,119 @@ class _HomeScreenState extends State<HomeScreen> {
     return "$hourStr:$minuteStr";
   }
 
+  String _formatDateReadable(DateTime date) {
+    const bulan = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "Mei",
+      "Jun",
+      "Jul",
+      "Agu",
+      "Sep",
+      "Okt",
+      "Nov",
+      "Des",
+    ];
+    return "${date.day.toString().padLeft(2, '0')} ${bulan[date.month - 1]} ${date.year}";
+  }
+
+  List<RecurringReminder> _getDueRecurringReminders() {
+    final now = DateTime.now();
+    final threshold = now.add(const Duration(days: 3));
+    return daftarPengingatRutin.where((reminder) {
+      return reminder.enabled && !reminder.nextDue.isAfter(threshold);
+    }).toList();
+  }
+
+  void _showRecurringReminderAlert(List<RecurringReminder> reminders) {
+    if (!mounted || reminders.isEmpty) return;
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Row(
+                children: [
+                  Icon(Icons.notifications, color: Colors.green),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      "Pengingat Tagihan Rutin",
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                "Jangan lupa bayar tagihan rutin atau transfer pada pengingat berikut:",
+                style: TextStyle(fontSize: 13, color: Colors.black87),
+              ),
+              const SizedBox(height: 16),
+              ...reminders.map((reminder) {
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    leading: const Icon(
+                      Icons.receipt_long,
+                      color: Colors.green,
+                    ),
+                    title: Text(reminder.title),
+                    subtitle: Text(
+                      "${reminder.nominal == 0 ? 'No nominal' : 'Rp ${formatRibuan(reminder.nominal)}'} • ${reminder.recurrenceType} • ${_formatDateReadable(reminder.nextDue)}",
+                    ),
+                  ),
+                );
+              }).toList(),
+              const SizedBox(height: 12),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 14),
+                  child: Text('Tutup'),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   void _showDetailTransaksi(Transaksi item, IconData categoryIcon) {
     final isPengeluaran = item.tipe == "Pengeluaran";
     final color = isPengeluaran ? Colors.red : Colors.green;
@@ -1057,6 +1170,14 @@ class _HomeScreenState extends State<HomeScreen> {
                           );
                         }
                         saveData();
+                        if (enableRecurringReminderGlobal) {
+                          final dueReminders = _getDueRecurringReminders();
+                          if (dueReminders.isNotEmpty) {
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              _showRecurringReminderAlert(dueReminders);
+                            });
+                          }
+                        }
                         _nominalController.clear();
                         _catatanController.clear();
                       });
