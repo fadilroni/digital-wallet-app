@@ -162,6 +162,8 @@ List<IconData> daftarPilihanIkon = [
   Icons.payments, // Gaji
   Icons.card_giftcard, // Pemberian
   Icons.trending_up, // Investasi
+  Icons.category, // Kategori umum
+  Icons.assignment_return, // Reimburse
   Icons.home, // Rumah
   Icons.bolt, // Listrik/Listrik
   Icons.medical_services, // Kesehatan
@@ -181,6 +183,36 @@ bool isHideSaldoGlobal = true;
 
 // Cache harga live crypto (simbol -> harga terakhir dalam IDR)
 Map<String, double> globalHargaCrypto = {};
+
+bool shouldCountInSummary(Transaksi t) {
+  final normalizedCategory = t.kategori.trim().toLowerCase();
+
+  if (normalizedCategory == 'pindah dana') {
+    return false;
+  }
+
+  if (t.tipe == 'Pengeluaran') {
+    return !{
+      'piutang',
+      'hutang',
+      'sedekah',
+      'reimburse',
+      'investasi',
+    }.contains(normalizedCategory);
+  }
+
+  if (t.tipe == 'Pemasukan') {
+    return !{
+      'piutang',
+      'hutang',
+      'pemberian',
+      'reimburse',
+      'investasi',
+    }.contains(normalizedCategory);
+  }
+
+  return true;
+}
 
 // Serialisasi & Deserialisasi Asset
 Map<String, dynamic> assetToMap(Asset a) {
@@ -211,7 +243,9 @@ Asset assetFromMap(Map<dynamic, dynamic> map) {
     assetType: map['assetType']?.toString() ?? 'crypto',
     interestRate: (map['interestRate'] as num?)?.toDouble(),
     tenor: (map['tenor'] as num?)?.toInt(),
-    depositDate: map['depositDate'] != null ? DateTime.tryParse(map['depositDate'].toString()) : null,
+    depositDate: map['depositDate'] != null
+        ? DateTime.tryParse(map['depositDate'].toString())
+        : null,
     sourceAccount: map['sourceAccount']?.toString(),
     isInterestPaid: map['isInterestPaid'] as bool? ?? false,
   );
@@ -459,7 +493,11 @@ void loadData() {
   );
   if (!hasInvestasiPengeluaran) {
     masterKategori.add(
-      KategoriModel(nama: "Investasi", tipe: "Pengeluaran", ikon: Icons.trending_up),
+      KategoriModel(
+        nama: "Investasi",
+        tipe: "Pengeluaran",
+        ikon: Icons.trending_up,
+      ),
     );
   }
   final hasInvestasiPemasukan = masterKategori.any(
@@ -467,7 +505,51 @@ void loadData() {
   );
   if (!hasInvestasiPemasukan) {
     masterKategori.add(
-      KategoriModel(nama: "Investasi", tipe: "Pemasukan", ikon: Icons.trending_up),
+      KategoriModel(
+        nama: "Investasi",
+        tipe: "Pemasukan",
+        ikon: Icons.trending_up,
+      ),
+    );
+  }
+
+  // Pastikan kategori default ada untuk Pengeluaran dan Pemasukan
+  final hasBelanjaPengeluaran = masterKategori.any(
+    (k) => k.nama == "Belanja" && k.tipe == "Pengeluaran",
+  );
+  if (!hasBelanjaPengeluaran) {
+    masterKategori.add(
+      KategoriModel(
+        nama: "Belanja",
+        tipe: "Pengeluaran",
+        ikon: Icons.shopping_bag,
+      ),
+    );
+  }
+
+  // Pastikan kategori "Reimburse" ada untuk Pemasukan dan Pengeluaran
+  final hasReimbursePengeluaran = masterKategori.any(
+    (k) => k.nama == "Reimburse" && k.tipe == "Pengeluaran",
+  );
+  if (!hasReimbursePengeluaran) {
+    masterKategori.add(
+      KategoriModel(
+        nama: "Reimburse",
+        tipe: "Pengeluaran",
+        ikon: Icons.assignment_return,
+      ),
+    );
+  }
+  final hasReimbursePemasukan = masterKategori.any(
+    (k) => k.nama == "Reimburse" && k.tipe == "Pemasukan",
+  );
+  if (!hasReimbursePemasukan) {
+    masterKategori.add(
+      KategoriModel(
+        nama: "Reimburse",
+        tipe: "Pemasukan",
+        ikon: Icons.assignment_return,
+      ),
     );
   }
 
@@ -477,7 +559,11 @@ void loadData() {
   );
   if (!hasPindahDanaPengeluaran) {
     masterKategori.add(
-      KategoriModel(nama: "Pindah Dana", tipe: "Pengeluaran", ikon: Icons.swap_horiz),
+      KategoriModel(
+        nama: "Pindah Dana",
+        tipe: "Pengeluaran",
+        ikon: Icons.swap_horiz,
+      ),
     );
   }
   final hasPindahDanaPemasukan = masterKategori.any(
@@ -485,7 +571,11 @@ void loadData() {
   );
   if (!hasPindahDanaPemasukan) {
     masterKategori.add(
-      KategoriModel(nama: "Pindah Dana", tipe: "Pemasukan", ikon: Icons.swap_horiz),
+      KategoriModel(
+        nama: "Pindah Dana",
+        tipe: "Pemasukan",
+        ikon: Icons.swap_horiz,
+      ),
     );
   }
   // Load Transaksi

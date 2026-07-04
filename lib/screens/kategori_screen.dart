@@ -9,6 +9,8 @@ String getNamaIkon(IconData ikon) {
   if (ikon == Icons.payments) return "Gaji / Pendapatan";
   if (ikon == Icons.card_giftcard) return "Hadiah / Pemberian";
   if (ikon == Icons.trending_up) return "Investasi / Bonus";
+  if (ikon == Icons.category) return "Kategori Lain";
+  if (ikon == Icons.assignment_return) return "Reimburse";
   if (ikon == Icons.home) return "Kebutuhan Rumah";
   if (ikon == Icons.bolt) return "Listrik / Utilitas";
   if (ikon == Icons.medical_services) return "Kesehatan / Medis";
@@ -459,10 +461,110 @@ class _KategoriScreenState extends State<KategoriScreen>
     );
   }
 
+  void _tambahKategori() {
+    final TextEditingController namaController = TextEditingController();
+    String tipeBaru = _tabController.index == 0 ? 'Pengeluaran' : 'Pemasukan';
+    IconData ikonBaru = Icons.category;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Tambah Kategori'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: namaController,
+                    decoration: const InputDecoration(
+                      labelText: 'Nama Kategori',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: tipeBaru,
+                    decoration: const InputDecoration(
+                      labelText: 'Tipe',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: _tabs
+                        .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                        .toList(),
+                    onChanged: (val) => setDialogState(() => tipeBaru = val!),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<IconData>(
+                    value: ikonBaru,
+                    decoration: const InputDecoration(
+                      labelText: 'Pilih Logo',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: daftarPilihanIkon.map((ikon) {
+                      return DropdownMenuItem<IconData>(
+                        value: ikon,
+                        child: Row(
+                          children: [
+                            Icon(ikon, color: Colors.green),
+                            const SizedBox(width: 12),
+                            Text(getNamaIkon(ikon)),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (val) => setDialogState(() => ikonBaru = val!),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Batal'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    final nama = namaController.text.trim();
+                    if (nama.isEmpty) return;
+
+                    setState(() {
+                      masterKategori.add(
+                        KategoriModel(
+                          nama: nama,
+                          tipe: tipeBaru,
+                          ikon: ikonBaru,
+                        ),
+                      );
+                    });
+                    saveData();
+                    Navigator.pop(context);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Simpan'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Kategori')),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _tambahKategori,
+        icon: const Icon(Icons.add),
+        label: const Text('Tambah Kategori'),
+        backgroundColor: Colors.green,
+        foregroundColor: Colors.white,
+      ),
       body: Column(
         children: [
           // ===== TAB BAR =====

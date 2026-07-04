@@ -393,10 +393,90 @@ class _AkunScreenState extends State<AkunScreen> {
     );
   }
 
+  void _tambahAkun() {
+    final TextEditingController namaController = TextEditingController();
+    final TextEditingController saldoAwalController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Tambah Akun / Dompet'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: namaController,
+                decoration: const InputDecoration(
+                  labelText: 'Nama Akun / Dompet',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: saldoAwalController,
+                keyboardType: TextInputType.number,
+                inputFormatters: [RibuanInputFormatter()],
+                decoration: const InputDecoration(
+                  labelText: 'Saldo Awal (Rp)',
+                  prefixText: 'Rp ',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final nama = namaController.text.trim();
+                if (nama.isEmpty) return;
+
+                setState(() {
+                  if (!masterAkun.contains(nama)) {
+                    masterAkun.add(nama);
+                  }
+                  final saldoAwal =
+                      double.tryParse(
+                        saldoAwalController.text.replaceAll('.', ''),
+                      ) ??
+                      0.0;
+                  if (saldoAwal > 0) {
+                    saldoAwalMap[nama] = saldoAwal;
+                  }
+                  if (akunUtama.isEmpty) {
+                    akunUtama = nama;
+                  }
+                });
+                saveData();
+                Navigator.pop(context);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Simpan'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Akun / Dompet')),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _tambahAkun,
+        icon: const Icon(Icons.add),
+        label: const Text('Tambah Akun'),
+        backgroundColor: Colors.green,
+        foregroundColor: Colors.white,
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(

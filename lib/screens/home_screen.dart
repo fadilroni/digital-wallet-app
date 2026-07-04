@@ -1094,7 +1094,7 @@ class _HomeScreenState extends State<HomeScreen> {
     double pengeluaranBulanIni = 0;
     for (var t in daftarTransaksi) {
       if (t.tipe == "Pengeluaran" &&
-          t.kategori != "Pindah Dana" &&
+          shouldCountInSummary(t) &&
           t.tanggal.year == nowTime.year &&
           t.tanggal.month == nowTime.month) {
         pengeluaranBulanIni += t.nominal;
@@ -1141,11 +1141,9 @@ class _HomeScreenState extends State<HomeScreen> {
           _filterKategori == "Semua" || t.kategori == _filterKategori;
       bool lolosFilter = masukRange && masukTipe && masukAkun && masukKategori;
 
-      if (lolosFilter) {
-        if (t.kategori != "Pindah Dana") {
-          if (t.tipe == "Pemasukan") totalPemasukan += t.nominal;
-          if (t.tipe == "Pengeluaran") totalPengeluaran += t.nominal;
-        }
+      if (lolosFilter && shouldCountInSummary(t)) {
+        if (t.tipe == "Pemasukan") totalPemasukan += t.nominal;
+        if (t.tipe == "Pengeluaran") totalPengeluaran += t.nominal;
       }
       return lolosFilter;
     }).toList();
