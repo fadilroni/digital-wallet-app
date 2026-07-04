@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
@@ -51,7 +52,9 @@ class NotificationService {
     if (!reminder.enabled) return;
 
     final int notificationId = reminder.id.hashCode;
-    await cancelReminder(reminder.id);
+    try {
+      await cancelReminder(reminder.id);
+    } catch (_) {}
 
     tz.TZDateTime scheduledDate = _computeScheduledDate(reminder);
     if (scheduledDate.isBefore(tz.TZDateTime.now(tz.local))) {
@@ -60,27 +63,31 @@ class NotificationService {
       ).add(const Duration(seconds: 5));
     }
 
-    await _plugin.zonedSchedule(
-      notificationId,
-      'Pengingat Tagihan Rutin',
-      'Tap untuk mencatat ${reminder.title} otomatis.',
-      scheduledDate,
-      NotificationDetails(
-        android: AndroidNotificationDetails(
-          'recurring_reminder_channel',
-          'Pengingat Rutin',
-          channelDescription: 'Notifikasi untuk pengingat tagihan rutin',
-          importance: Importance.high,
-          priority: Priority.high,
-          ticker: 'Pengingat Rutin',
+    try {
+      await _plugin.zonedSchedule(
+        notificationId,
+        'Pengingat Tagihan Rutin',
+        'Tap untuk mencatat ${reminder.title} otomatis.',
+        scheduledDate,
+        NotificationDetails(
+          android: AndroidNotificationDetails(
+            'recurring_reminder_channel',
+            'Pengingat Rutin',
+            channelDescription: 'Notifikasi untuk pengingat tagihan rutin',
+            importance: Importance.high,
+            priority: Priority.high,
+            ticker: 'Pengingat Rutin',
+          ),
+          iOS: const DarwinNotificationDetails(),
         ),
-        iOS: const DarwinNotificationDetails(),
-      ),
-      payload: reminder.id,
-      uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
-      androidAllowWhileIdle: true,
-    );
+        payload: reminder.id,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+        androidAllowWhileIdle: true,
+      );
+    } catch (e) {
+      debugPrint('Gagal menjadwalkan notifikasi: $e');
+    }
   }
 
   tz.TZDateTime _computeScheduledDate(RecurringReminder reminder) {
@@ -90,22 +97,34 @@ class NotificationService {
       nextDue.year,
       nextDue.month,
       nextDue.day,
-      9,
-      0,
+      reminder.hour,
+      reminder.minute,
     );
   }
 
   Future<void> cancelReminder(String id) async {
-    await _plugin.cancel(id.hashCode);
+    try {
+      await _plugin.cancel(id.hashCode);
+    } catch (e) {
+      debugPrint('Gagal membatalkan notifikasi: $e');
+    }
   }
 
   Future<void> cancelAllReminders() async {
-    await _plugin.cancelAll();
+    try {
+      await _plugin.cancelAll();
+    } catch (e) {
+      debugPrint('Gagal membatalkan semua notifikasi: $e');
+    }
   }
 
   Future<void> scheduleAllReminders() async {
     for (var reminder in daftarPengingatRutin) {
-      await scheduleReminder(reminder);
+      try {
+        await scheduleReminder(reminder);
+      } catch (e) {
+        debugPrint('Gagal menjadwalkan pengingat: $e');
+      }
     }
   }
 

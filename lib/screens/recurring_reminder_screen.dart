@@ -138,6 +138,11 @@ class _RecurringReminderScreenState extends State<RecurringReminderScreen> {
     String recurrenceType = reminder?.recurrenceType ?? 'Bulanan';
     int customIntervalDays = reminder?.customIntervalDays ?? 7;
     DateTime nextDue = reminder?.nextDue ?? DateTime.now();
+    // Initialize hour/minute from reminder or default to 9:00
+    int hour = reminder?.hour ?? 9;
+    int minute = reminder?.minute ?? 0;
+    // Ensure nextDue has the correct hour/minute
+    nextDue = DateTime(nextDue.year, nextDue.month, nextDue.day, hour, minute);
     String note = reminder?.note ?? '';
 
     final expenseCategories = masterKategori
@@ -295,6 +300,35 @@ class _RecurringReminderScreenState extends State<RecurringReminderScreen> {
                               picked.year,
                               picked.month,
                               picked.day,
+                              nextDue.hour,
+                              nextDue.minute,
+                            );
+                          });
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.access_time, color: Colors.green),
+                      label: Text(
+                        'Jam Notifikasi: ${nextDue.hour.toString().padLeft(2, '0')}:${nextDue.minute.toString().padLeft(2, '0')}',
+                      ),
+                      onPressed: () async {
+                        final picked = await showTimePicker(
+                          context: context,
+                          initialTime: TimeOfDay(
+                            hour: nextDue.hour,
+                            minute: nextDue.minute,
+                          ),
+                        );
+                        if (picked != null) {
+                          innerSetState(() {
+                            nextDue = DateTime(
+                              nextDue.year,
+                              nextDue.month,
+                              nextDue.day,
+                              picked.hour,
+                              picked.minute,
                             );
                           });
                         }
@@ -345,11 +379,13 @@ class _RecurringReminderScreenState extends State<RecurringReminderScreen> {
                       nextDue: nextDue,
                       enabled: reminder?.enabled ?? true,
                       note: noteCtrl.text.trim(),
+                      hour: nextDue.hour,
+                      minute: nextDue.minute,
                     );
 
                     if (isEditing) {
                       final index = daftarPengingatRutin.indexWhere(
-                        (r) => r.id == reminder!.id,
+                        (r) => r.id == reminder.id,
                       );
                       if (index >= 0) {
                         daftarPengingatRutin[index] = newReminder;
@@ -359,9 +395,11 @@ class _RecurringReminderScreenState extends State<RecurringReminderScreen> {
                     }
                     saveData();
                     if (enableRecurringReminderGlobal) {
-                      await NotificationService.instance.scheduleReminder(
-                        newReminder,
-                      );
+                      try {
+                        await NotificationService.instance.scheduleReminder(
+                          newReminder,
+                        );
+                      } catch (_) {}
                     }
 
                     Navigator.pop(dialogCtx);

@@ -164,6 +164,8 @@ class RecurringReminder {
   DateTime nextDue;
   bool enabled;
   String note;
+  int hour; // jam notifikasi (0-23)
+  int minute; // menit notifikasi (0-59)
 
   RecurringReminder({
     required this.id,
@@ -176,6 +178,8 @@ class RecurringReminder {
     required this.nextDue,
     required this.enabled,
     this.note = '',
+    this.hour = 9,
+    this.minute = 0,
   });
 }
 
@@ -396,6 +400,8 @@ Map<String, dynamic> recurringReminderToMap(RecurringReminder r) {
     'nextDue': r.nextDue.toIso8601String(),
     'enabled': r.enabled,
     'note': r.note,
+    'hour': r.hour,
+    'minute': r.minute,
   };
 }
 
@@ -411,6 +417,8 @@ RecurringReminder recurringReminderFromMap(Map<dynamic, dynamic> map) {
     nextDue: DateTime.tryParse(map['nextDue'] ?? '') ?? DateTime.now(),
     enabled: map['enabled'] as bool? ?? true,
     note: map['note'] ?? '',
+    hour: (map['hour'] as num?)?.toInt() ?? 9,
+    minute: (map['minute'] as num?)?.toInt() ?? 0,
   );
 }
 

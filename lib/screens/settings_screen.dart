@@ -677,7 +677,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
       appBar: AppBar(title: const Text('Pengaturan')),
       body: ListView(
         children: [
-          // SECTION 1: LIMIT PENGELUARAN
+          // SECTION 1: KATEGORI & AKUN
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 8.0,
+            ),
+            child: Text(
+              "KATEGORI & AKUN",
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.category),
+            title: const Text('Kategori'),
+            subtitle: const Text('Kelola kategori pemasukan dan pengeluaran'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const KategoriScreen()),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.account_balance_wallet),
+            title: const Text('Akun'),
+            subtitle: const Text('Kelola akun / dompet'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const AkunScreen()),
+              );
+            },
+          ),
+          const Divider(height: 32),
+
+          // SECTION 2: LIMIT PENGELUARAN
           Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: 16.0,
@@ -724,37 +765,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
           ],
-          const Divider(height: 32),
-
-          // SECTION 2: PRIVASI
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16.0,
-              vertical: 8.0,
-            ),
-            child: Text(
-              "PRIVASI",
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: Colors.grey,
-              ),
-            ),
-          ),
-          SwitchListTile(
-            title: const Text("Sembunyikan Saldo"),
-            subtitle: const Text("Sembunyikan saldo di halaman utama"),
-            value: isHideSaldo,
-            activeColor: Colors.green,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16.0),
-            onChanged: (val) {
-              setState(() {
-                isHideSaldo = val;
-                isHideSaldoGlobal = isHideSaldo;
-              });
-              saveData();
-            },
-          ),
           const Divider(height: 32),
 
           // SECTION 3: PENGINGAT RUTIN
@@ -862,47 +872,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 }
               }
               _showImportSelectionDialog();
-            },
-          ),
-          const Divider(height: 32),
-
-          // SECTION 4: KATEGORI & AKUN
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16.0,
-              vertical: 8.0,
-            ),
-            child: Text(
-              "KATEGORI & AKUN",
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: Colors.grey,
-              ),
-            ),
-          ),
-          ListTile(
-            leading: const Icon(Icons.category),
-            title: const Text('Kategori'),
-            subtitle: const Text('Kelola kategori pemasukan dan pengeluaran'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const KategoriScreen()),
-              );
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.account_balance_wallet),
-            title: const Text('Akun'),
-            subtitle: const Text('Kelola akun / dompet'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const AkunScreen()),
-              );
             },
           ),
         ],
