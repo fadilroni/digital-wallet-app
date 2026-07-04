@@ -153,7 +153,7 @@ class _RecurringReminderScreenState extends State<RecurringReminderScreen> {
 
     final titleCtrl = TextEditingController(text: title);
     final nominalCtrl = TextEditingController(
-      text: nominal > 0 ? nominal.toStringAsFixed(0) : '',
+      text: nominal > 0 ? formatRibuan(nominal) : '',
     );
     final noteCtrl = TextEditingController(text: note);
 
@@ -161,7 +161,7 @@ class _RecurringReminderScreenState extends State<RecurringReminderScreen> {
       context: context,
       builder: (dialogCtx) {
         return StatefulBuilder(
-          builder: (context, setState) {
+          builder: (context, innerSetState) {
             return AlertDialog(
               title: Text(isEditing ? 'Edit Pengingat' : 'Tambah Pengingat'),
               content: SingleChildScrollView(
@@ -180,6 +180,7 @@ class _RecurringReminderScreenState extends State<RecurringReminderScreen> {
                     TextField(
                       controller: nominalCtrl,
                       keyboardType: TextInputType.number,
+                      inputFormatters: [RibuanInputFormatter()],
                       decoration: const InputDecoration(
                         labelText: 'Nominal (Rp)',
                         prefixText: 'Rp ',
@@ -207,7 +208,7 @@ class _RecurringReminderScreenState extends State<RecurringReminderScreen> {
                           .toList(),
                       onChanged: (val) {
                         if (val != null) {
-                          setState(() {
+                          innerSetState(() {
                             kategori = val;
                           });
                         }
@@ -227,7 +228,7 @@ class _RecurringReminderScreenState extends State<RecurringReminderScreen> {
                           .toList(),
                       onChanged: (val) {
                         if (val != null) {
-                          setState(() {
+                          innerSetState(() {
                             akun = val;
                           });
                         }
@@ -250,7 +251,7 @@ class _RecurringReminderScreenState extends State<RecurringReminderScreen> {
                           .toList(),
                       onChanged: (val) {
                         if (val != null) {
-                          setState(() {
+                          innerSetState(() {
                             recurrenceType = val;
                           });
                         }
@@ -289,7 +290,7 @@ class _RecurringReminderScreenState extends State<RecurringReminderScreen> {
                           lastDate: DateTime(2100),
                         );
                         if (picked != null) {
-                          setState(() {
+                          innerSetState(() {
                             nextDue = DateTime(
                               picked.year,
                               picked.month,
@@ -346,27 +347,25 @@ class _RecurringReminderScreenState extends State<RecurringReminderScreen> {
                       note: noteCtrl.text.trim(),
                     );
 
-                    setState(() {
-                      if (isEditing) {
-                        final index = daftarPengingatRutin.indexWhere(
-                          (r) => r.id == reminder!.id,
-                        );
-                        if (index >= 0) {
-                          daftarPengingatRutin[index] = newReminder;
-                        }
-                      } else {
-                        daftarPengingatRutin.add(newReminder);
+                    if (isEditing) {
+                      final index = daftarPengingatRutin.indexWhere(
+                        (r) => r.id == reminder!.id,
+                      );
+                      if (index >= 0) {
+                        daftarPengingatRutin[index] = newReminder;
                       }
-                      saveData();
-                    });
+                    } else {
+                      daftarPengingatRutin.add(newReminder);
+                    }
+                    saveData();
                     if (enableRecurringReminderGlobal) {
-                      await NotificationService.instance.requestPermission();
                       await NotificationService.instance.scheduleReminder(
                         newReminder,
                       );
                     }
 
                     Navigator.pop(dialogCtx);
+                    this.setState(() {});
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green,
