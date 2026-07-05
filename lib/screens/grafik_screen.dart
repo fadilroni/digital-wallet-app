@@ -182,7 +182,7 @@ class _GrafikScreenState extends State<GrafikScreen>
     final filtered = daftarTransaksi.where((t) {
       return t.tipe == _selectedTipe &&
           t.kategori != 'Pindah Dana' &&
-          t.tanggal.isAfter(rangeMulai.subtract(const Duration(days: 1))) &&
+          !t.tanggal.isBefore(rangeMulai) &&
           t.tanggal.isBefore(rangeSelesai.add(const Duration(days: 1))) &&
           (_selectedAkun == 'Semua' || t.akun == _selectedAkun) &&
           (_selectedKategori == 'Semua' || t.kategori == _selectedKategori);

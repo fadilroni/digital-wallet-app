@@ -1156,7 +1156,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     List<Transaksi> riwayatTerfilter = daftarTransaksi.where((t) {
       bool masukRange =
-          t.tanggal.isAfter(rangeMulai.subtract(Duration(days: 1))) &&
+          !t.tanggal.isBefore(rangeMulai) &&
           t.tanggal.isBefore(rangeSelesai.add(Duration(days: 1)));
 
       bool masukTipe = _filterTipe == "Semua" || t.tipe == _filterTipe;
