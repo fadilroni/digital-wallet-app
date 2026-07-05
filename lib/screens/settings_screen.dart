@@ -746,8 +746,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 enableLimit = val;
                 if (!val) {
                   limitCtrl.clear();
+                  limitPengeluaran = 0.0;
+                } else {
+                  final limitStr = limitCtrl.text.replaceAll('.', '');
+                  limitPengeluaran = double.tryParse(limitStr) ?? 0.0;
                 }
               });
+              saveData();
             },
           ),
           if (enableLimit) ...[
@@ -762,6 +767,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   prefixText: "Rp ",
                   border: OutlineInputBorder(),
                 ),
+                onChanged: (_) {
+                  final limitStr = limitCtrl.text.replaceAll('.', '');
+                  limitPengeluaran = double.tryParse(limitStr) ?? 0.0;
+                  saveData();
+                },
               ),
             ),
           ],
@@ -876,28 +886,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          setState(() {
-            if (enableLimit) {
-              final limitStr = limitCtrl.text.replaceAll('.', '');
-              limitPengeluaran = double.tryParse(limitStr) ?? 0.0;
-            } else {
-              limitPengeluaran = 0.0;
-            }
-            enableRecurringReminderGlobal = enableRecurringReminder;
-          });
-          saveData();
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Pengaturan disimpan!')));
-        },
-        label: const Text('Simpan Pengaturan'),
-        icon: const Icon(Icons.save),
-        backgroundColor: Colors.green,
-        foregroundColor: Colors.white,
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
 }
