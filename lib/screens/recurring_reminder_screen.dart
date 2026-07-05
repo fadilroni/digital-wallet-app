@@ -316,10 +316,16 @@ class _RecurringReminderScreenState extends State<RecurringReminderScreen> {
                       onPressed: () async {
                         final picked = await showTimePicker(
                           context: context,
-                          initialTime: TimeOfDay(
-                            hour: nextDue.hour,
-                            minute: nextDue.minute,
-                          ),
+                          initialTime: TimeOfDay.fromDateTime(nextDue),
+                          initialEntryMode: TimePickerEntryMode.input,
+                          builder: (context, child) {
+                            return MediaQuery(
+                              data: MediaQuery.of(
+                                context,
+                              ).copyWith(alwaysUse24HourFormat: true),
+                              child: child!,
+                            );
+                          },
                         );
                         if (picked != null) {
                           innerSetState(() {
@@ -394,13 +400,12 @@ class _RecurringReminderScreenState extends State<RecurringReminderScreen> {
                       daftarPengingatRutin.add(newReminder);
                     }
                     saveData();
-                    if (enableRecurringReminderGlobal) {
-                      try {
-                        await NotificationService.instance.scheduleReminder(
-                          newReminder,
-                        );
-                      } catch (_) {}
-                    }
+                    await NotificationService.instance.requestPermission();
+                    try {
+                      await NotificationService.instance.scheduleReminder(
+                        newReminder,
+                      );
+                    } catch (_) {}
 
                     Navigator.pop(dialogCtx);
                     this.setState(() {});

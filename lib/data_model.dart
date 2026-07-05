@@ -184,7 +184,6 @@ class RecurringReminder {
 }
 
 List<RecurringReminder> daftarPengingatRutin = [];
-bool enableRecurringReminderGlobal = false;
 
 // DAFTAR PILIHAN LOGO/IKON YANG BISA DIPILIH USER
 List<IconData> daftarPilihanIkon = [
@@ -452,7 +451,6 @@ void saveData() {
   box.put('kontakUtang', kontakUtangMaps);
   box.put('asset', assetMaps);
   box.put('isHideSaldo', isHideSaldoGlobal);
-  box.put('recurringReminderEnabled', enableRecurringReminderGlobal);
   box.put('recurringReminders', reminderMaps);
 }
 
@@ -486,8 +484,6 @@ void loadData() {
 
   // Load Limit Pengeluaran
   limitPengeluaran = box.get('limitPengeluaran', defaultValue: 0.0) as double;
-  enableRecurringReminderGlobal =
-      box.get('recurringReminderEnabled', defaultValue: false) as bool;
 
   // Load Saldo Awal Map
   final Map<dynamic, dynamic>? savedSaldoAwal = box.get('saldoAwalMap');
@@ -784,7 +780,6 @@ Future<String?> exportData() async {
       'saldoAwalMap': saldoAwalMap,
       'kontakUtang': daftarKontakUtang.map((k) => kontakUtangToMap(k)).toList(),
       'asset': daftarAsset.map((a) => assetToMap(a)).toList(),
-      'recurringReminderEnabled': enableRecurringReminderGlobal,
       'recurringReminders': daftarPengingatRutin
           .map((r) => recurringReminderToMap(r))
           .toList(),
@@ -872,13 +867,6 @@ Future<String> importData({File? selectedFile}) async {
         daftarAsset = importedAsset.map((a) => assetFromMap(a as Map)).toList();
       } else {
         daftarAsset = [];
-      }
-
-      if (importMap.containsKey('recurringReminderEnabled')) {
-        enableRecurringReminderGlobal =
-            importMap['recurringReminderEnabled'] as bool? ?? false;
-      } else {
-        enableRecurringReminderGlobal = false;
       }
 
       if (importMap.containsKey('recurringReminders')) {

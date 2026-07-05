@@ -8,7 +8,6 @@ import '../data_model.dart';
 import 'kategori_screen.dart';
 import 'akun_screen.dart';
 import 'recurring_reminder_screen.dart';
-import '../notification_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -19,7 +18,6 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   bool isHideSaldo = isHideSaldoGlobal;
-  bool enableRecurringReminder = enableRecurringReminderGlobal;
   final TextEditingController limitCtrl = TextEditingController();
   bool enableLimit = false;
 
@@ -31,7 +29,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     enableLimit = limitPengeluaran > 0;
-    enableRecurringReminder = enableRecurringReminderGlobal;
     if (enableLimit) {
       limitCtrl.text = formatRibuan(limitPengeluaran);
     }
@@ -791,28 +788,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 color: Colors.grey,
               ),
             ),
-          ),
-          SwitchListTile(
-            title: const Text("Aktifkan Pengingat Tagihan Rutin"),
-            subtitle: const Text(
-              "Tampilkan notifikasi pengingat tagihan rutin dan transfer",
-            ),
-            value: enableRecurringReminder,
-            activeColor: Colors.green,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16.0),
-            onChanged: (val) async {
-              setState(() {
-                enableRecurringReminder = val;
-                enableRecurringReminderGlobal = val;
-              });
-              if (val) {
-                await NotificationService.instance.requestPermission();
-                await NotificationService.instance.scheduleAllReminders();
-              } else {
-                await NotificationService.instance.cancelAllReminders();
-              }
-              saveData();
-            },
           ),
           ListTile(
             leading: const Icon(Icons.schedule),

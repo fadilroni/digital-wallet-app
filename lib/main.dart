@@ -12,9 +12,10 @@ void main() async {
         processRecurringReminder(payload);
       },
     );
-    if (enableRecurringReminderGlobal) {
-      await NotificationService.instance.scheduleAllReminders();
-    }
+    // Jadwal ulang semua notifikasi yg tersimpan (Android handle periodik via matchDateTimeComponents)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      NotificationService.instance.scheduleAllReminders();
+    });
     runApp(MyApp());
   } catch (e, stack) {
     runApp(

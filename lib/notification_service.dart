@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'data_model.dart';
@@ -11,12 +12,30 @@ class NotificationService {
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
   Future<void> Function(String? payload)? _onTapPayload;
+  late final tz.Location _tz;
 
   Future<void> init({
     required Future<void> Function(String? payload) onTapPayload,
   }) async {
     _onTapPayload = onTapPayload;
-    tz.initializeTimeZones();
+    try {
+      tz.initializeTimeZones();
+    } catch (e) {
+      debugPrint('Gagal init timezone: $e');
+    }
+
+    // Auto-detect timezone dari sistem Android. Fallback Asia/Jakarta
+    try {
+      final tzInfo = await FlutterTimezone.getLocalTimezone();
+      _tz = tz.getLocation(tzInfo.identifier);
+    } catch (e) {
+      debugPrint('Gagal detect system timezone: $e');
+      try {
+        _tz = tz.getLocation('Asia/Jakarta');
+      } catch (_) {
+        _tz = tz.local;
+      }
+    }
     final androidInit = const AndroidInitializationSettings(
       '@mipmap/launcher_icon',
     );
@@ -27,16 +46,25 @@ class NotificationService {
     );
     final settings = InitializationSettings(android: androidInit, iOS: iosInit);
 
-    await _plugin.initialize(
-      settings,
-      onDidReceiveNotificationResponse: (response) async {
-        await _handleNotificationResponse(response);
-      },
-    );
+    try {
+      await _plugin.initialize(
+        settings,
+        onDidReceiveNotificationResponse: (response) async {
+          await _handleNotificationResponse(response);
+        },
+      );
+    } catch (e) {
+      debugPrint('Gagal init notifikasi: $e');
+      // JANGAN return — plugin tetap bisa dipake
+    }
 
-    final details = await _plugin.getNotificationAppLaunchDetails();
-    if (details?.didNotificationLaunchApp ?? false) {
-      await _handleNotificationResponse(details!.notificationResponse!);
+    try {
+      final details = await _plugin.getNotificationAppLaunchDetails();
+      if (details?.didNotificationLaunchApp ?? false) {
+        await _handleNotificationResponse(details!.notificationResponse!);
+      }
+    } catch (e) {
+      debugPrint('Gagal cek launch details: $e');
     }
   }
 
@@ -56,47 +84,69 @@ class NotificationService {
       await cancelReminder(reminder.id);
     } catch (_) {}
 
+    final notifDetails = NotificationDetails(
+      android: AndroidNotificationDetails(
+        'recurring_reminder_channel',
+        'Pengingat Rutin',
+        channelDescription: 'Notifikasi untuk pengingat tagihan rutin',
+        importance: Importance.high,
+        priority: Priority.high,
+        ticker: 'Pengingat Rutin',
+        styleInformation: BigTextStyleInformation(
+          'Jangan lupa untuk membayar <b>${reminder.title}</b>, dan tap untuk mencatat transaksi tagihan otomatis.',
+          htmlFormatBigText: true,
+        ),
+      ),
+      iOS: const DarwinNotificationDetails(),
+    );
+
+    // Jadwal sesuai reminder
     tz.TZDateTime scheduledDate = _computeScheduledDate(reminder);
-    if (scheduledDate.isBefore(tz.TZDateTime.now(tz.local))) {
-      scheduledDate = tz.TZDateTime.now(
-        tz.local,
-      ).add(const Duration(seconds: 5));
+    if (scheduledDate.isBefore(tz.TZDateTime.now(_tz))) {
+      scheduledDate = tz.TZDateTime.now(_tz).add(const Duration(seconds: 5));
+    }
+
+    // Map recurrence ke Android repeat component biar otomatis berulang
+    DateTimeComponents? matchComponents;
+    switch (reminder.recurrenceType) {
+      case 'Harian':
+        matchComponents = DateTimeComponents.time;
+        break;
+      case 'Mingguan':
+        matchComponents = DateTimeComponents.dayOfWeekAndTime;
+        break;
+      case 'Bulanan':
+        matchComponents = DateTimeComponents.dayOfMonthAndTime;
+        break;
+      // Custom: interval variable, ga pake matchComponents — handle manual
+      default:
+        matchComponents = null;
     }
 
     try {
       await _plugin.zonedSchedule(
         notificationId,
-        'Pengingat Tagihan Rutin',
-        'Tap untuk mencatat ${reminder.title} otomatis.',
+        reminder.title,
+        'Jangan lupa untuk membayar ${reminder.title}, dan tap untuk mencatat transaksi tagihan otomatis.',
         scheduledDate,
-        NotificationDetails(
-          android: AndroidNotificationDetails(
-            'recurring_reminder_channel',
-            'Pengingat Rutin',
-            channelDescription: 'Notifikasi untuk pengingat tagihan rutin',
-            importance: Importance.high,
-            priority: Priority.high,
-            ticker: 'Pengingat Rutin',
-          ),
-          iOS: const DarwinNotificationDetails(),
-        ),
+        notifDetails,
         payload: reminder.id,
         uiLocalNotificationDateInterpretation:
             UILocalNotificationDateInterpretation.absoluteTime,
         androidAllowWhileIdle: true,
+        matchDateTimeComponents: matchComponents,
       );
     } catch (e) {
-      debugPrint('Gagal menjadwalkan notifikasi: $e');
+      debugPrint('Gagal jadwalkan notifikasi: $e');
     }
   }
 
   tz.TZDateTime _computeScheduledDate(RecurringReminder reminder) {
-    final nextDue = reminder.nextDue;
     return tz.TZDateTime(
-      tz.local,
-      nextDue.year,
-      nextDue.month,
-      nextDue.day,
+      _tz,
+      reminder.nextDue.year,
+      reminder.nextDue.month,
+      reminder.nextDue.day,
       reminder.hour,
       reminder.minute,
     );
