@@ -111,13 +111,21 @@ class GoogleDriveSyncService {
 
   // Menggabungkan data Cloud dan Lokal (Smart Merge)
   void _smartMergeData(Map<String, dynamic> remoteData) {
-    // 1. Sinkronisasi ID Transaksi yang telah dihapus
+    // 1. Sinkronisasi ID Transaksi & Pengingat yang telah dihapus
     final remoteDeletedIds = (remoteData['deletedTransactionIds'] as List?)
             ?.map((e) => e.toString())
             .toList() ??
         [];
     for (var id in remoteDeletedIds) {
       recordDeletedTransactionId(id);
+    }
+
+    final remoteDeletedReminderIds = (remoteData['deletedReminderIds'] as List?)
+            ?.map((e) => e.toString())
+            .toList() ??
+        [];
+    for (var id in remoteDeletedReminderIds) {
+      recordDeletedReminderId(id);
     }
 
     // 2. Transaksi Smart Merge (Union by ID, update if newer, sort by date descending)
@@ -249,21 +257,44 @@ class GoogleDriveSyncService {
       daftarAsset = assetMap.values.toList();
     }
 
-    // 8. Recurring Reminders Smart Merge
+    // 8. Recurring Reminders Smart Merge (Hapus yang ditandai terhapus, gabungkan yang baru)
     if (remoteData.containsKey('recurringReminders') && remoteData['recurringReminders'] is List) {
       final remoteReminderList = (remoteData['recurringReminders'] as List)
           .map((item) => recurringReminderFromMap(Map<String, dynamic>.from(item)))
           .toList();
 
-      final Map<String, RecurringReminder> reminderMap = {
-        for (var r in daftarPengingatRutin) r.id: r
-      };
+      final Map<String, RecurringReminder> reminderMap = {};
       for (var rr in remoteReminderList) {
-        if (!reminderMap.containsKey(rr.id)) {
+        if (!deletedReminderIds.contains(rr.id)) {
           reminderMap[rr.id] = rr;
         }
       }
+      for (var lr in daftarPengingatRutin) {
+        if (deletedReminderIds.contains(lr.id)) {
+          reminderMap.remove(lr.id);
+        } else {
+          reminderMap[lr.id] = lr;
+        }
+      }
       daftarPengingatRutin = reminderMap.values.toList();
+    } else {
+      daftarPengingatRutin.removeWhere((r) => deletedReminderIds.contains(r.id));
+    }
+
+    // 9. Limit Pengeluaran Smart Merge
+    if (remoteData.containsKey('limitPengeluaran')) {
+      final remoteLimit = (remoteData['limitPengeluaran'] as num?)?.toDouble() ?? 0.0;
+      if (remoteLimit > 0 || limitPengeluaran == 0) {
+        limitPengeluaran = remoteLimit;
+      }
+    }
+
+    // 10. Akun Utama Smart Merge
+    if (remoteData.containsKey('akunUtama') && remoteData['akunUtama'] is String) {
+      final remoteAkunUtama = remoteData['akunUtama'] as String;
+      if (remoteAkunUtama.isNotEmpty && masterAkun.contains(remoteAkunUtama)) {
+        akunUtama = remoteAkunUtama;
+      }
     }
 
     // Simpan hasil gabungan ke database lokal Hive
@@ -303,6 +334,7 @@ class GoogleDriveSyncService {
         'isHideSaldo': isHideSaldoGlobal,
         'recurringReminders': daftarPengingatRutin.map((r) => recurringReminderToMap(r)).toList(),
         'deletedTransactionIds': deletedTransactionIds,
+        'deletedReminderIds': deletedReminderIds,
       };
 
       final jsonString = jsonEncode(backupData);
@@ -384,6 +416,7 @@ class GoogleDriveSyncService {
         'isHideSaldo': isHideSaldoGlobal,
         'recurringReminders': daftarPengingatRutin.map((r) => recurringReminderToMap(r)).toList(),
         'deletedTransactionIds': deletedTransactionIds,
+        'deletedReminderIds': deletedReminderIds,
       };
 
       final jsonString = jsonEncode(mergedBackupData);

@@ -216,6 +216,7 @@ List<KontakUtang> daftarKontakUtang = [];
 List<Asset> daftarAsset = [];
 bool isHideSaldoGlobal = true;
 List<String> deletedTransactionIds = [];
+List<String> deletedReminderIds = [];
 final ValueNotifier<int> dataVersionNotifier = ValueNotifier<int>(0);
 
 void recordDeletedTransactionId(String id) {
@@ -224,6 +225,16 @@ void recordDeletedTransactionId(String id) {
     deletedTransactionIds.add(id);
     if (deletedTransactionIds.length > 500) {
       deletedTransactionIds.removeRange(0, deletedTransactionIds.length - 500);
+    }
+  }
+}
+
+void recordDeletedReminderId(String id) {
+  if (id.isEmpty) return;
+  if (!deletedReminderIds.contains(id)) {
+    deletedReminderIds.add(id);
+    if (deletedReminderIds.length > 200) {
+      deletedReminderIds.removeRange(0, deletedReminderIds.length - 200);
     }
   }
 }
@@ -471,6 +482,7 @@ void saveData({bool triggerCloudSync = true}) {
   box.put('isHideSaldo', isHideSaldoGlobal);
   box.put('recurringReminders', reminderMaps);
   box.put('deletedTransactionIds', deletedTransactionIds);
+  box.put('deletedReminderIds', deletedReminderIds);
 
   dataVersionNotifier.value++;
 
@@ -737,6 +749,14 @@ void loadData() {
     deletedTransactionIds = [];
   }
 
+  // Load Deleted Reminder IDs
+  final List<dynamic>? savedDeletedReminderIds = box.get('deletedReminderIds');
+  if (savedDeletedReminderIds != null) {
+    deletedReminderIds = List<String>.from(savedDeletedReminderIds);
+  } else {
+    deletedReminderIds = [];
+  }
+
   // Simpan data (untuk menyimpan migrasi kategori jika ada perubahan) tanpa trigger cloud upload
   saveData(triggerCloudSync: false);
 }
@@ -819,6 +839,7 @@ Future<String?> exportData() async {
       'recurringReminders': daftarPengingatRutin
           .map((r) => recurringReminderToMap(r))
           .toList(),
+      'deletedReminderIds': deletedReminderIds,
     };
 
     final jsonString = jsonEncode(exportMap);
@@ -912,6 +933,13 @@ Future<String> importData({File? selectedFile}) async {
             .toList();
       } else {
         daftarPengingatRutin = [];
+      }
+
+      if (importMap.containsKey('deletedReminderIds')) {
+        final List<dynamic> importedDeletedReminders = importMap['deletedReminderIds'];
+        for (var id in importedDeletedReminders) {
+          recordDeletedReminderId(id.toString());
+        }
       }
 
       saveData();

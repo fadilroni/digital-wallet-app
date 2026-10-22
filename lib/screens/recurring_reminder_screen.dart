@@ -567,11 +567,12 @@ class _RecurringReminderScreenState extends State<RecurringReminderScreen> {
               style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
               onPressed: () async {
                 setState(() {
+                  recordDeletedReminderId(reminder.id);
                   daftarPengingatRutin.removeWhere((r) => r.id == reminder.id);
                   saveData();
                 });
                 await NotificationService.instance.cancelReminder(reminder.id);
-                Navigator.pop(ctx);
+                if (ctx.mounted) Navigator.pop(ctx);
               },
               child: const Text('Hapus'),
             ),

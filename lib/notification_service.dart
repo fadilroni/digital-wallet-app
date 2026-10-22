@@ -12,7 +12,11 @@ class NotificationService {
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
   Future<void> Function(String? payload)? _onTapPayload;
-  tz.Location _tz = tz.local;
+  tz.Location? _tz;
+
+  tz.Location _getLocation() {
+    return _tz ?? tz.UTC;
+  }
 
   Future<void> init({
     required Future<void> Function(String? payload) onTapPayload,
@@ -27,7 +31,7 @@ class NotificationService {
       try {
         _tz = tz.getLocation('Asia/Jakarta');
       } catch (_) {
-        _tz = tz.local;
+        _tz = tz.UTC;
       }
     }
     final androidInit = const AndroidInitializationSettings(
@@ -95,9 +99,10 @@ class NotificationService {
     );
 
     // Jadwal sesuai reminder
+    final loc = _getLocation();
     tz.TZDateTime scheduledDate = _computeScheduledDate(reminder);
-    if (scheduledDate.isBefore(tz.TZDateTime.now(_tz))) {
-      scheduledDate = tz.TZDateTime.now(_tz).add(const Duration(seconds: 5));
+    if (scheduledDate.isBefore(tz.TZDateTime.now(loc))) {
+      scheduledDate = tz.TZDateTime.now(loc).add(const Duration(seconds: 5));
     }
 
     // Map recurrence ke Android repeat component biar otomatis berulang
@@ -153,7 +158,7 @@ class NotificationService {
 
   tz.TZDateTime _computeScheduledDate(RecurringReminder reminder) {
     return tz.TZDateTime(
-      _tz,
+      _getLocation(),
       reminder.nextDue.year,
       reminder.nextDue.month,
       reminder.nextDue.day,
