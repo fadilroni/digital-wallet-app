@@ -1168,9 +1168,13 @@ class _AssetScreenState extends State<AssetScreen> {
           ),
           const SizedBox(height: 6),
           Text(
-            isHideSaldoGlobal ? 'Rp ••••••••' : 'Rp ${_fmt(grandTotal)}',
-            style: const TextStyle(
-              color: Colors.white,
+            isHideSaldoGlobal
+                ? 'Rp ••••••••'
+                : (grandTotal < 0
+                    ? '-Rp ${_fmt(grandTotal.abs())}'
+                    : 'Rp ${_fmt(grandTotal)}'),
+            style: TextStyle(
+              color: grandTotal < 0 ? Colors.redAccent[100] : Colors.white,
               fontSize: 28,
               fontWeight: FontWeight.bold,
               letterSpacing: -0.5,
@@ -1219,9 +1223,13 @@ class _AssetScreenState extends State<AssetScreen> {
                     Text(
                       isHideSaldoGlobal
                           ? 'Rp ••••••••'
-                          : 'Rp ${_fmt(totalSaldoAkun)}',
-                      style: const TextStyle(
-                        color: Colors.white,
+                          : (totalSaldoAkun < 0
+                              ? '-Rp ${_fmt(totalSaldoAkun.abs())}'
+                              : 'Rp ${_fmt(totalSaldoAkun)}'),
+                      style: TextStyle(
+                        color: totalSaldoAkun < 0
+                            ? Colors.redAccent[100]
+                            : Colors.white,
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
                       ),

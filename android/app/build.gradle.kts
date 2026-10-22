@@ -32,6 +32,10 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
 }
@@ -59,16 +63,18 @@ tasks.whenTaskAdded {
 
 tasks.register("renameReleaseApk") {
     doLast {
-        val apkDir = file("$buildDir/outputs/flutter-apk")
-        val oldApk = File(apkDir, "app-release.apk")
-
-        if (oldApk.exists()) {
-            val newApk = File(
-                apkDir,
-                "DompetDigital-v${android.defaultConfig.versionName}.apk"
-            )
-
-            oldApk.renameTo(newApk)
+        val candidates = listOf(
+            file("$buildDir/outputs/flutter-apk"),
+            file("$buildDir/outputs/apk/release")
+        )
+        for (apkDir in candidates) {
+            val releaseApk = File(apkDir, "app-release.apk")
+            if (releaseApk.exists()) {
+                val destDir = file("$buildDir/outputs/flutter-apk")
+                destDir.mkdirs()
+                val namedApk = File(destDir, "DompetDigital-v${android.defaultConfig.versionName}.apk")
+                releaseApk.copyTo(namedApk, overwrite = true)
+            }
         }
     }
 }

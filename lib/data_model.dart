@@ -4,6 +4,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:convert';
 import 'dart:io';
+import 'google_drive_service.dart';
 
 class Transaksi {
   String id;
@@ -13,6 +14,7 @@ class Transaksi {
   String kategori;
   String akun;
   DateTime tanggal;
+  int? updatedAt;
 
   Transaksi({
     required this.id,
@@ -22,6 +24,7 @@ class Transaksi {
     required this.kategori,
     required this.akun,
     required this.tanggal,
+    this.updatedAt,
   });
 }
 
@@ -212,6 +215,18 @@ List<Transaksi> daftarTransaksi = [];
 List<KontakUtang> daftarKontakUtang = [];
 List<Asset> daftarAsset = [];
 bool isHideSaldoGlobal = true;
+List<String> deletedTransactionIds = [];
+final ValueNotifier<int> dataVersionNotifier = ValueNotifier<int>(0);
+
+void recordDeletedTransactionId(String id) {
+  if (id.isEmpty) return;
+  if (!deletedTransactionIds.contains(id)) {
+    deletedTransactionIds.add(id);
+    if (deletedTransactionIds.length > 500) {
+      deletedTransactionIds.removeRange(0, deletedTransactionIds.length - 500);
+    }
+  }
+}
 
 // Cache harga live crypto (simbol -> harga terakhir dalam IDR)
 Map<String, double> globalHargaCrypto = {};
@@ -343,10 +358,12 @@ Map<String, dynamic> transaksiToMap(Transaksi t) {
     'kategori': t.kategori,
     'akun': t.akun,
     'tanggal': t.tanggal.toIso8601String(),
+    'updatedAt': t.updatedAt ?? t.tanggal.millisecondsSinceEpoch,
   };
 }
 
 Transaksi transaksiFromMap(Map<dynamic, dynamic> map) {
+  final dt = DateTime.tryParse(map['tanggal'] ?? '') ?? DateTime.now();
   return Transaksi(
     id: map['id'] ?? '',
     nominal: (map['nominal'] as num?)?.toDouble() ?? 0.0,
@@ -354,7 +371,8 @@ Transaksi transaksiFromMap(Map<dynamic, dynamic> map) {
     tipe: map['tipe'] ?? '',
     kategori: map['kategori'] ?? '',
     akun: map['akun'] ?? '',
-    tanggal: DateTime.tryParse(map['tanggal'] ?? '') ?? DateTime.now(),
+    tanggal: dt,
+    updatedAt: (map['updatedAt'] as num?)?.toInt() ?? dt.millisecondsSinceEpoch,
   );
 }
 
@@ -429,7 +447,7 @@ Future<void> initDatabase() async {
 }
 
 // Menyimpan data ke Hive
-void saveData() {
+void saveData({bool triggerCloudSync = true}) {
   final box = Hive.box('dompet_pribadi_box');
 
   final transaksiMaps = daftarTransaksi.map((t) => transaksiToMap(t)).toList();
@@ -452,6 +470,16 @@ void saveData() {
   box.put('asset', assetMaps);
   box.put('isHideSaldo', isHideSaldoGlobal);
   box.put('recurringReminders', reminderMaps);
+  box.put('deletedTransactionIds', deletedTransactionIds);
+
+  dataVersionNotifier.value++;
+
+  // Trigger otomatis sinkronisasi ke Google Drive jika pengguna terhubung
+  if (triggerCloudSync) {
+    Future.microtask(() {
+      GoogleDriveSyncService.instance.uploadDataToDrive();
+    });
+  }
 }
 
 // Memuat data dari Hive
@@ -701,8 +729,16 @@ void loadData() {
     daftarPengingatRutin = [];
   }
 
-  // Simpan data (untuk menyimpan migrasi kategori jika ada perubahan)
-  saveData();
+  // Load Deleted Transaction IDs
+  final List<dynamic>? savedDeletedIds = box.get('deletedTransactionIds');
+  if (savedDeletedIds != null) {
+    deletedTransactionIds = List<String>.from(savedDeletedIds);
+  } else {
+    deletedTransactionIds = [];
+  }
+
+  // Simpan data (untuk menyimpan migrasi kategori jika ada perubahan) tanpa trigger cloud upload
+  saveData(triggerCloudSync: false);
 }
 
 // Mendapatkan path file backup

@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:open_filex/open_filex.dart';
 import '../data_model.dart';
+import '../google_drive_service.dart';
 import 'kategori_screen.dart';
 import 'akun_screen.dart';
 import 'recurring_reminder_screen.dart';
@@ -857,6 +858,119 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 }
               }
               _showImportSelectionDialog();
+            },
+          ),
+          const Divider(height: 32),
+
+          // SECTION 5: SINKRONISASI GOOGLE DRIVE
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 8.0,
+            ),
+            child: Text(
+              "SINKRONISASI ONLINE (GOOGLE DRIVE)",
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Builder(
+            builder: (context) {
+              final user = GoogleDriveSyncService.instance.currentUser;
+              final isSyncing = GoogleDriveSyncService.instance.isSyncing;
+
+              if (user == null) {
+                return ListTile(
+                  leading: const Icon(Icons.cloud_off, color: Colors.orange),
+                  title: const Text('Hubungkan Akun Google'),
+                  subtitle: const Text('Login untuk sinkronisasi otomatis antar-HP'),
+                  trailing: const Icon(Icons.login, color: Colors.green),
+                  onTap: () async {
+                    try {
+                      await GoogleDriveSyncService.instance.signIn();
+                      setState(() {});
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Berhasil terhubung ke Akun Google!")),
+                      );
+                    } catch (e) {
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text("Gagal login Google: $e")),
+                      );
+                    }
+                  },
+                );
+              }
+
+              return Column(
+                children: [
+                  ListTile(
+                    leading: CircleAvatar(
+                      backgroundImage: user.photoUrl != null ? NetworkImage(user.photoUrl!) : null,
+                      child: user.photoUrl == null ? const Icon(Icons.person) : null,
+                    ),
+                    title: Text(user.displayName ?? 'Akun Google'),
+                    subtitle: Text(user.email),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.logout, color: Colors.red),
+                      onPressed: () async {
+                        await GoogleDriveSyncService.instance.signOut();
+                        setState(() {});
+                      },
+                    ),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.cloud_upload, color: Colors.blue),
+                    title: const Text('Upload Data Manual'),
+                    subtitle: const Text('Gabungkan & upload data lokal ke Google Drive'),
+                    trailing: isSyncing ? const CircularProgressIndicator() : const Icon(Icons.chevron_right),
+                    onTap: isSyncing
+                        ? null
+                        : () async {
+                            setState(() {});
+                            final success = await GoogleDriveSyncService.instance.uploadDataToDrive();
+                            setState(() {});
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  success
+                                      ? "Data berhasil digabungkan & di-upload ke Google Drive!"
+                                      : "Gagal meng-upload data ke Google Drive.",
+                                ),
+                              ),
+                            );
+                          },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.cloud_download, color: Colors.green),
+                    title: const Text('Sinkron / Tarik Data Online'),
+                    subtitle: const Text('Tarik & gabungkan data dari Google Drive'),
+                    trailing: isSyncing ? const CircularProgressIndicator() : const Icon(Icons.refresh),
+                    onTap: isSyncing
+                        ? null
+                        : () async {
+                            setState(() {});
+                            final success = await GoogleDriveSyncService.instance.downloadDataFromDrive();
+                            setState(() {});
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  success
+                                      ? "Data berhasil disinkronkan & digabungkan dari Google Drive!"
+                                      : "Gagal menarik data dari Google Drive.",
+                                ),
+                              ),
+                            );
+                          },
+                  ),
+                ],
+              );
             },
           ),
         ],

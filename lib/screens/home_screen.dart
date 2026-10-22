@@ -10,6 +10,7 @@ import '../data_model.dart';
 import 'grafik_screen.dart';
 import 'utang_screen.dart';
 import 'asset_screen.dart';
+import 'recurring_reminder_screen.dart';
 import '../notification_service.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -25,19 +26,51 @@ class _HomeScreenState extends State<HomeScreen> {
 
   late final PageController _pageController;
 
+  void _onDataVersionChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void initState() {
     super.initState();
+    dataVersionNotifier.addListener(_onDataVersionChanged);
     _pageController = PageController(initialPage: _currentIndex);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (daftarPengingatRutin.any((r) => r.enabled)) {
         NotificationService.instance.scheduleAllReminders();
+      }
+      final dueReminders = daftarPengingatRutin
+          .where((r) => r.enabled && !r.nextDue.isAfter(DateTime.now()))
+          .toList();
+      if (dueReminders.isNotEmpty && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Ada ${dueReminders.length} tagihan rutin jatuh tempo.',
+            ),
+            backgroundColor: Colors.orange[800],
+            action: SnackBarAction(
+              label: 'Lihat',
+              textColor: Colors.white,
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const RecurringReminderScreen(),
+                  ),
+                );
+              },
+            ),
+            duration: const Duration(seconds: 5),
+          ),
+        );
       }
     });
   }
 
   @override
   void dispose() {
+    dataVersionNotifier.removeListener(_onDataVersionChanged);
     _pageController.dispose();
     super.dispose();
   }
@@ -445,6 +478,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         item.kategori = editKategori;
                         item.akun = editAkun;
                         item.tanggal = editTanggal;
+                        item.updatedAt = DateTime.now().millisecondsSinceEpoch;
                       });
                       saveData();
                       Navigator.pop(context);
@@ -482,18 +516,19 @@ class _HomeScreenState extends State<HomeScreen> {
                   // Jika Pindah Dana Pengeluaran → hapus pasangan masuknya
                   if (item.tipe == 'Pengeluaran' &&
                       item.kategori == 'Pindah Dana') {
-                    daftarTransaksi.removeWhere(
-                      (t) => t.id == 'transfer_masuk_${item.id}',
-                    );
+                    final targetId = 'transfer_masuk_${item.id}';
+                    daftarTransaksi.removeWhere((t) => t.id == targetId);
+                    recordDeletedTransactionId(targetId);
                   }
                   // Jika Pindah Dana Pemasukan → hapus pasangan keluarnya
                   if (item.tipe == 'Pemasukan' &&
                       item.kategori == 'Pindah Dana') {
-                    daftarTransaksi.removeWhere(
-                      (t) => t.id == 'transfer_keluar_${item.id}',
-                    );
+                    final targetId = 'transfer_keluar_${item.id}';
+                    daftarTransaksi.removeWhere((t) => t.id == targetId);
+                    recordDeletedTransactionId(targetId);
                   }
                   daftarTransaksi.removeWhere((t) => t.id == item.id);
+                  recordDeletedTransactionId(item.id);
                 });
                 saveData();
                 Navigator.pop(context);

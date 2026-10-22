@@ -47,50 +47,166 @@ class _RecurringReminderScreenState extends State<RecurringReminderScreen> {
               itemCount: daftarPengingatRutin.length,
               itemBuilder: (context, index) {
                 final reminder = daftarPengingatRutin[index];
+                final now = DateTime.now();
+                final isDue = reminder.enabled && !reminder.nextDue.isAfter(now);
+
                 return Card(
                   margin: const EdgeInsets.only(bottom: 12),
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: isDue
+                        ? const BorderSide(color: Colors.orange, width: 1.5)
+                        : BorderSide.none,
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
                       horizontal: 16,
                       vertical: 12,
                     ),
-                    leading: Icon(
-                      Icons.receipt_long,
-                      color: reminder.enabled ? Colors.green : Colors.grey,
-                    ),
-                    title: Text(reminder.title),
-                    subtitle: Text(
-                      'Rp ${formatRibuan(reminder.nominal)} • ${reminder.recurrenceType} • ${_formatDateReadable(reminder.nextDue)}',
-                    ),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Switch(
-                          value: reminder.enabled,
-                          activeColor: Colors.green,
-                          onChanged: (value) {
-                            setState(() {
-                              reminder.enabled = value;
-                              saveData();
-                            });
-                          },
-                        ),
-                        PopupMenuButton<String>(
-                          onSelected: (value) {
-                            if (value == 'edit') {
-                              _showAddEditReminder(reminder);
-                            } else if (value == 'delete') {
-                              _confirmDeleteReminder(reminder);
-                            }
-                          },
-                          itemBuilder: (context) => [
-                            const PopupMenuItem(
-                              value: 'edit',
-                              child: Text('Edit'),
+                        Row(
+                          children: [
+                            CircleAvatar(
+                              backgroundColor: reminder.enabled
+                                  ? (isDue ? Colors.orange.withValues(alpha: 0.15) : Colors.green.withValues(alpha: 0.15))
+                                  : Colors.grey.withValues(alpha: 0.15),
+                              child: Icon(
+                                Icons.receipt_long,
+                                color: reminder.enabled
+                                    ? (isDue ? Colors.orange : Colors.green)
+                                    : Colors.grey,
+                              ),
                             ),
-                            const PopupMenuItem(
-                              value: 'delete',
-                              child: Text('Hapus'),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          reminder.title,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 15,
+                                          ),
+                                        ),
+                                      ),
+                                      if (isDue)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 6,
+                                            vertical: 2,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Colors.orange.withValues(alpha: 0.15),
+                                            borderRadius: BorderRadius.circular(6),
+                                          ),
+                                          child: const Text(
+                                            'JATUH TEMPO',
+                                            style: TextStyle(
+                                              color: Colors.orange,
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Rp ${formatRibuan(reminder.nominal)} • ${reminder.recurrenceType} (${reminder.akun})',
+                                    style: TextStyle(
+                                      color: Colors.grey[700],
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Jatuh tempo: ${_formatDateReadable(reminder.nextDue)} (${reminder.hour.toString().padLeft(2, '0')}:${reminder.minute.toString().padLeft(2, '0')})',
+                                    style: TextStyle(
+                                      color: isDue ? Colors.orange[800] : Colors.grey[500],
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Switch(
+                              value: reminder.enabled,
+                              activeColor: Colors.green,
+                              onChanged: (value) {
+                                setState(() {
+                                  reminder.enabled = value;
+                                  saveData();
+                                });
+                                if (value) {
+                                  NotificationService.instance.scheduleReminder(reminder);
+                                } else {
+                                  NotificationService.instance.cancelReminder(reminder.id);
+                                }
+                              },
+                            ),
+                            PopupMenuButton<String>(
+                              onSelected: (value) {
+                                if (value == 'edit') {
+                                  _showAddEditReminder(reminder);
+                                } else if (value == 'delete') {
+                                  _confirmDeleteReminder(reminder);
+                                }
+                              },
+                              itemBuilder: (context) => [
+                                const PopupMenuItem(
+                                  value: 'edit',
+                                  child: Text('Edit'),
+                                ),
+                                const PopupMenuItem(
+                                  value: 'delete',
+                                  child: Text('Hapus'),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        const Divider(height: 1),
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Kategori: ${reminder.kategori}',
+                              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                            ),
+                            ElevatedButton.icon(
+                              icon: const Icon(Icons.check_circle_outline, size: 16),
+                              label: const Text('Catat Transaksi'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: isDue ? Colors.orange : Colors.green,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              onPressed: () async {
+                                await executeRecurringReminder(reminder);
+                                setState(() {});
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      'Transaksi "${reminder.title}" sebesar Rp ${formatRibuan(reminder.nominal)} berhasil dicatat!',
+                                    ),
+                                    backgroundColor: Colors.green,
+                                  ),
+                                );
+                              },
                             ),
                           ],
                         ),
@@ -129,13 +245,34 @@ class _RecurringReminderScreenState extends State<RecurringReminderScreen> {
   void _showAddEditReminder(RecurringReminder? reminder) {
     final isEditing = reminder != null;
     String title = reminder?.title ?? '';
-    String kategori =
-        reminder?.kategori ??
-        (masterKategori.isNotEmpty ? masterKategori.first.nama : 'Tagihan');
-    String akun =
-        reminder?.akun ?? (masterAkun.isNotEmpty ? masterAkun.first : 'Tunai');
+
+    final expenseCategories = masterKategori
+        .where((k) => k.tipe == 'Pengeluaran')
+        .map((k) => k.nama)
+        .toList();
+
+    if (expenseCategories.isEmpty) {
+      expenseCategories.add('Tagihan');
+    }
+
+    String kategori = reminder?.kategori ?? expenseCategories.first;
+    if (!expenseCategories.contains(kategori)) {
+      kategori = expenseCategories.first;
+    }
+
+    final availableAccounts = masterAkun.isNotEmpty ? masterAkun : ['Cash Bank'];
+    String akun = reminder?.akun ?? availableAccounts.first;
+    if (!availableAccounts.contains(akun)) {
+      akun = availableAccounts.first;
+    }
+
     double nominal = reminder?.nominal ?? 0.0;
     String recurrenceType = reminder?.recurrenceType ?? 'Bulanan';
+    const validRecurrence = ['Bulanan', 'Mingguan', 'Harian', 'Custom'];
+    if (!validRecurrence.contains(recurrenceType)) {
+      recurrenceType = 'Bulanan';
+    }
+
     int customIntervalDays = reminder?.customIntervalDays ?? 7;
     DateTime nextDue = reminder?.nextDue ?? DateTime.now();
     // Initialize hour/minute from reminder or default to 9:00
@@ -144,17 +281,6 @@ class _RecurringReminderScreenState extends State<RecurringReminderScreen> {
     // Ensure nextDue has the correct hour/minute
     nextDue = DateTime(nextDue.year, nextDue.month, nextDue.day, hour, minute);
     String note = reminder?.note ?? '';
-
-    final expenseCategories = masterKategori
-        .where((k) => k.tipe == 'Pengeluaran')
-        .map((k) => k.nama)
-        .toList();
-
-    if (!expenseCategories.contains(kategori)) {
-      kategori = expenseCategories.isNotEmpty
-          ? expenseCategories.first
-          : 'Belanja';
-    }
 
     final titleCtrl = TextEditingController(text: title);
     final nominalCtrl = TextEditingController(

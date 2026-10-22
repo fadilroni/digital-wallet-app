@@ -479,17 +479,15 @@ class _GrafikScreenState extends State<GrafikScreen>
           saldo += t.tipe == 'Pemasukan' ? t.nominal : -t.nominal;
         }
       }
-      if (saldo > 0) {
-        totalSaldo += saldo;
-        akunSlices.add(
-          _AsetSlice(
-            label: nama,
-            sublabel: 'Saldo Akun',
-            nilai: saldo,
-            color: akunColors[i % akunColors.length],
-          ),
-        );
-      }
+      totalSaldo += saldo;
+      akunSlices.add(
+        _AsetSlice(
+          label: nama,
+          sublabel: 'Saldo Akun',
+          nilai: saldo,
+          color: akunColors[i % akunColors.length],
+        ),
+      );
     }
 
     // ── Nilai tiap aset ─────────────────────────────────────────
@@ -601,16 +599,16 @@ class _GrafikScreenState extends State<GrafikScreen>
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 16),
-                  SizedBox(
-                    height: 230,
-                    child: CustomPaint(
-                      painter: DonutPainter(
-                        values: allSlices.map((s) => s.nilai).toList(),
-                        colors: allSlices.map((s) => s.color).toList(),
-                        bgColor: Theme.of(context).cardColor,
+                    SizedBox(
+                      height: 230,
+                      child: CustomPaint(
+                        painter: DonutPainter(
+                          values: allSlices.map((s) => s.nilai > 0 ? s.nilai : 0.0).toList(),
+                          colors: allSlices.map((s) => s.color).toList(),
+                          bgColor: Theme.of(context).cardColor,
+                        ),
                       ),
                     ),
-                  ),
                   const SizedBox(height: 14),
 
                   // Aset section
@@ -657,9 +655,9 @@ class _GrafikScreenState extends State<GrafikScreen>
         ),
         const SizedBox(height: 3),
         Text(
-          'Rp ${_fmt(val)}',
+          val < 0 ? '-Rp ${_fmt(val.abs())}' : 'Rp ${_fmt(val)}',
           style: TextStyle(
-            color: valColor,
+            color: val < 0 ? Colors.redAccent[100] : valColor,
             fontWeight: FontWeight.bold,
             fontSize: 14,
           ),
@@ -681,10 +679,10 @@ class _GrafikScreenState extends State<GrafikScreen>
             ),
           ),
           Text(
-            '${pct.toStringAsFixed(1)}%  Rp ${_fmt(sub)}',
+            '${pct.toStringAsFixed(1)}%  ${sub < 0 ? "-Rp ${_fmt(sub.abs())}" : "Rp ${_fmt(sub)}"}',
             style: TextStyle(
               fontWeight: FontWeight.bold,
-              color: color,
+              color: sub < 0 ? Colors.redAccent : color,
               fontSize: 12,
             ),
           ),
@@ -728,10 +726,10 @@ class _GrafikScreenState extends State<GrafikScreen>
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                'Rp ${_fmt(s.nilai)}',
+                s.nilai < 0 ? '-Rp ${_fmt(s.nilai.abs())}' : 'Rp ${_fmt(s.nilai)}',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  color: s.color,
+                  color: s.nilai < 0 ? Colors.redAccent : s.color,
                   fontSize: 13,
                 ),
               ),

@@ -12,7 +12,7 @@ class NotificationService {
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
   Future<void> Function(String? payload)? _onTapPayload;
-  late final tz.Location _tz;
+  tz.Location _tz = tz.local;
 
   Future<void> init({
     required Future<void> Function(String? payload) onTapPayload,
@@ -20,12 +20,6 @@ class NotificationService {
     _onTapPayload = onTapPayload;
     try {
       tz.initializeTimeZones();
-    } catch (e) {
-      debugPrint('Gagal init timezone: $e');
-    }
-
-    // Auto-detect timezone dari sistem Android. Fallback Asia/Jakarta
-    try {
       final tzInfo = await FlutterTimezone.getLocalTimezone();
       _tz = tz.getLocation(tzInfo.identifier);
     } catch (e) {
@@ -133,11 +127,27 @@ class NotificationService {
         payload: reminder.id,
         uiLocalNotificationDateInterpretation:
             UILocalNotificationDateInterpretation.absoluteTime,
-        androidAllowWhileIdle: true,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
         matchDateTimeComponents: matchComponents,
       );
     } catch (e) {
-      debugPrint('Gagal jadwalkan notifikasi: $e');
+      debugPrint('Gagal jadwalkan notifikasi exact, coba fallback: $e');
+      try {
+        await _plugin.zonedSchedule(
+          notificationId,
+          reminder.title,
+          'Jangan lupa untuk membayar ${reminder.title}, dan tap untuk mencatat transaksi tagihan otomatis.',
+          scheduledDate,
+          notifDetails,
+          payload: reminder.id,
+          uiLocalNotificationDateInterpretation:
+              UILocalNotificationDateInterpretation.absoluteTime,
+          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+          matchDateTimeComponents: matchComponents,
+        );
+      } catch (e2) {
+        debugPrint('Gagal total jadwalkan notifikasi: $e2');
+      }
     }
   }
 
@@ -188,13 +198,7 @@ class NotificationService {
   }
 }
 
-Future<void> processRecurringReminder(String? payload) async {
-  if (payload == null || payload.isEmpty) return;
-
-  final matched = daftarPengingatRutin.where((r) => r.id == payload).toList();
-  if (matched.isEmpty) return;
-  final reminder = matched.first;
-
+Future<void> executeRecurringReminder(RecurringReminder reminder) async {
   final now = DateTime.now();
   daftarTransaksi.add(
     Transaksi(
@@ -204,7 +208,8 @@ Future<void> processRecurringReminder(String? payload) async {
       tipe: 'Pengeluaran',
       kategori: reminder.kategori,
       akun: reminder.akun,
-      tanggal: reminder.nextDue,
+      tanggal: reminder.nextDue.isAfter(now) ? reminder.nextDue : now,
+      updatedAt: now.millisecondsSinceEpoch,
     ),
   );
 
@@ -225,9 +230,19 @@ Future<void> processRecurringReminder(String? payload) async {
         reminder.nextDue.year,
         reminder.nextDue.month + 1,
         reminder.nextDue.day,
+        reminder.hour,
+        reminder.minute,
       );
   }
 
   saveData();
   await NotificationService.instance.scheduleReminder(reminder);
+}
+
+Future<void> processRecurringReminder(String? payload) async {
+  if (payload == null || payload.isEmpty) return;
+
+  final matched = daftarPengingatRutin.where((r) => r.id == payload).toList();
+  if (matched.isEmpty) return;
+  await executeRecurringReminder(matched.first);
 }

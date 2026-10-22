@@ -1,12 +1,14 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'screens/home_screen.dart';
 import 'data_model.dart';
 import 'notification_service.dart';
+import 'google_drive_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
     await initDatabase();
+    await GoogleDriveSyncService.instance.init();
     await NotificationService.instance.init(
       onTapPayload: (payload) async {
         processRecurringReminder(payload);
