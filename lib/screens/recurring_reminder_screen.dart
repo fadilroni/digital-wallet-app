@@ -142,6 +142,7 @@ class _RecurringReminderScreenState extends State<RecurringReminderScreen> {
                               onChanged: (value) {
                                 setState(() {
                                   reminder.enabled = value;
+                                  reminder.updatedAt = DateTime.now().millisecondsSinceEpoch;
                                   saveData();
                                 });
                                 if (value) {
@@ -195,15 +196,17 @@ class _RecurringReminderScreenState extends State<RecurringReminderScreen> {
                                 ),
                               ),
                               onPressed: () async {
-                                await executeRecurringReminder(reminder);
+                                final isNew = await executeRecurringReminder(reminder);
                                 setState(() {});
                                 if (!context.mounted) return;
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
                                     content: Text(
-                                      'Transaksi "${reminder.title}" sebesar Rp ${formatRibuan(reminder.nominal)} berhasil dicatat!',
+                                      isNew
+                                          ? 'Transaksi "${reminder.title}" sebesar Rp ${formatRibuan(reminder.nominal)} berhasil dicatat!'
+                                          : 'Transaksi periode ini sudah pernah dicatat sebelumnya (jadwal dimajukan ke periode berikutnya).',
                                     ),
-                                    backgroundColor: Colors.green,
+                                    backgroundColor: isNew ? Colors.green : Colors.blueGrey,
                                   ),
                                 );
                               },
@@ -513,6 +516,7 @@ class _RecurringReminderScreenState extends State<RecurringReminderScreen> {
                       note: noteCtrl.text.trim(),
                       hour: nextDue.hour,
                       minute: nextDue.minute,
+                      updatedAt: DateTime.now().millisecondsSinceEpoch,
                     );
 
                     if (isEditing) {
@@ -533,8 +537,12 @@ class _RecurringReminderScreenState extends State<RecurringReminderScreen> {
                       );
                     } catch (_) {}
 
-                    Navigator.pop(dialogCtx);
-                    this.setState(() {});
+                    if (dialogCtx.mounted) {
+                      Navigator.pop(dialogCtx);
+                    }
+                    if (mounted) {
+                      setState(() {});
+                    }
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green,

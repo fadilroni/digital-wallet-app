@@ -4,6 +4,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
 import 'package:http/http.dart' as http;
 import 'data_model.dart';
+import 'notification_service.dart';
 
 class GoogleAuthClient extends http.BaseClient {
   final Map<String, String> _headers;
@@ -128,6 +129,30 @@ class GoogleDriveSyncService {
       recordDeletedReminderId(id);
     }
 
+    final remoteDeletedContactIds = (remoteData['deletedContactIds'] as List?)
+            ?.map((e) => e.toString())
+            .toList() ??
+        [];
+    for (var id in remoteDeletedContactIds) {
+      recordDeletedContactId(id);
+    }
+
+    final remoteDeletedUtangTxIds = (remoteData['deletedUtangTxIds'] as List?)
+            ?.map((e) => e.toString())
+            .toList() ??
+        [];
+    for (var id in remoteDeletedUtangTxIds) {
+      recordDeletedUtangTxId(id);
+    }
+
+    final remoteDeletedAssetIds = (remoteData['deletedAssetIds'] as List?)
+            ?.map((e) => e.toString())
+            .toList() ??
+        [];
+    for (var id in remoteDeletedAssetIds) {
+      recordDeletedAssetId(id);
+    }
+
     // 2. Transaksi Smart Merge (Union by ID, update if newer, sort by date descending)
     final Map<String, Transaksi> transactionMap = {};
 
@@ -205,59 +230,104 @@ class GoogleDriveSyncService {
       }
     }
 
-    // 6. Kontak Utang Smart Merge
+    // 6. Kontak Utang Smart Merge (Hapus yang ditandai terhapus, gabungkan yang baru)
     if (remoteData.containsKey('kontakUtang') && remoteData['kontakUtang'] is List) {
       final remoteKontakList = (remoteData['kontakUtang'] as List)
           .map((item) => kontakUtangFromMap(Map<String, dynamic>.from(item)))
           .toList();
 
-      final Map<String, KontakUtang> kontakMap = {
-        for (var k in daftarKontakUtang) k.id: k
-      };
+      final Map<String, KontakUtang> kontakMap = {};
 
+      // Masukkan kontak remote yang BELUM dihapus
       for (var rk in remoteKontakList) {
-        if (!kontakMap.containsKey(rk.id)) {
-          kontakMap[rk.id] = rk;
+        if (!deletedContactIds.contains(rk.id)) {
+          final filteredTx = rk.transaksi
+              .where((t) => !deletedUtangTxIds.contains(t.id))
+              .toList();
+          kontakMap[rk.id] = KontakUtang(
+            id: rk.id,
+            nama: rk.nama,
+            telepon: rk.telepon,
+            tanggalDibuat: rk.tanggalDibuat,
+            transaksi: filteredTx,
+          );
+        }
+      }
+
+      // Gabungkan dengan kontak lokal
+      for (var lk in daftarKontakUtang) {
+        if (deletedContactIds.contains(lk.id)) {
+          kontakMap.remove(lk.id);
+          continue;
+        }
+
+        final filteredLocalTx = lk.transaksi
+            .where((t) => !deletedUtangTxIds.contains(t.id))
+            .toList();
+
+        if (!kontakMap.containsKey(lk.id)) {
+          kontakMap[lk.id] = KontakUtang(
+            id: lk.id,
+            nama: lk.nama,
+            telepon: lk.telepon,
+            tanggalDibuat: lk.tanggalDibuat,
+            transaksi: filteredLocalTx,
+          );
         } else {
-          final existing = kontakMap[rk.id]!;
+          final existing = kontakMap[lk.id]!;
           final Map<String, TransaksiUtang> txUtangMap = {
-            for (var t in existing.transaksi) t.id: t
+            for (var t in existing.transaksi)
+              if (!deletedUtangTxIds.contains(t.id)) t.id: t
           };
-          for (var rt in rk.transaksi) {
-            txUtangMap[rt.id] = rt;
+          for (var rt in filteredLocalTx) {
+            if (!deletedUtangTxIds.contains(rt.id)) {
+              txUtangMap[rt.id] = rt;
+            }
           }
           final mergedUtangTx = txUtangMap.values.toList();
           mergedUtangTx.sort((a, b) => b.tanggal.compareTo(a.tanggal));
-          kontakMap[rk.id] = KontakUtang(
+          kontakMap[lk.id] = KontakUtang(
             id: existing.id,
-            nama: existing.nama.isNotEmpty ? existing.nama : rk.nama,
-            telepon: existing.telepon.isNotEmpty ? existing.telepon : rk.telepon,
+            nama: lk.nama.isNotEmpty ? lk.nama : existing.nama,
+            telepon: lk.telepon.isNotEmpty ? lk.telepon : existing.telepon,
             tanggalDibuat: existing.tanggalDibuat,
             transaksi: mergedUtangTx,
           );
         }
       }
       daftarKontakUtang = kontakMap.values.toList();
+    } else {
+      daftarKontakUtang.removeWhere((k) => deletedContactIds.contains(k.id));
+      for (var k in daftarKontakUtang) {
+        k.transaksi.removeWhere((t) => deletedUtangTxIds.contains(t.id));
+      }
     }
 
-    // 7. Asset Smart Merge
+    // 7. Asset Smart Merge (Hapus yang ditandai terhapus, gabungkan yang baru)
     if (remoteData.containsKey('asset') && remoteData['asset'] is List) {
       final remoteAssetList = (remoteData['asset'] as List)
           .map((item) => assetFromMap(Map<String, dynamic>.from(item)))
           .toList();
 
-      final Map<String, Asset> assetMap = {
-        for (var a in daftarAsset) a.id: a
-      };
+      final Map<String, Asset> assetMap = {};
       for (var ra in remoteAssetList) {
-        if (!assetMap.containsKey(ra.id)) {
+        if (!deletedAssetIds.contains(ra.id)) {
           assetMap[ra.id] = ra;
         }
       }
+      for (var la in daftarAsset) {
+        if (deletedAssetIds.contains(la.id)) {
+          assetMap.remove(la.id);
+        } else {
+          assetMap[la.id] = la;
+        }
+      }
       daftarAsset = assetMap.values.toList();
+    } else {
+      daftarAsset.removeWhere((a) => deletedAssetIds.contains(a.id));
     }
 
-    // 8. Recurring Reminders Smart Merge (Hapus yang ditandai terhapus, gabungkan yang baru)
+    // 8. Recurring Reminders Smart Merge (Hapus yang ditandai terhapus, gabungkan dengan versi terupdate)
     if (remoteData.containsKey('recurringReminders') && remoteData['recurringReminders'] is List) {
       final remoteReminderList = (remoteData['recurringReminders'] as List)
           .map((item) => recurringReminderFromMap(Map<String, dynamic>.from(item)))
@@ -273,7 +343,16 @@ class GoogleDriveSyncService {
         if (deletedReminderIds.contains(lr.id)) {
           reminderMap.remove(lr.id);
         } else {
-          reminderMap[lr.id] = lr;
+          if (!reminderMap.containsKey(lr.id)) {
+            reminderMap[lr.id] = lr;
+          } else {
+            final rr = reminderMap[lr.id]!;
+            final localUpdated = lr.updatedAt ?? lr.nextDue.millisecondsSinceEpoch;
+            final remoteUpdated = rr.updatedAt ?? rr.nextDue.millisecondsSinceEpoch;
+            if (localUpdated >= remoteUpdated) {
+              reminderMap[lr.id] = lr;
+            }
+          }
         }
       }
       daftarPengingatRutin = reminderMap.values.toList();
@@ -299,6 +378,11 @@ class GoogleDriveSyncService {
 
     // Simpan hasil gabungan ke database lokal Hive
     saveData(triggerCloudSync: false);
+
+    // Sinkronkan jadwal notifikasi lokal dengan hasil merge
+    try {
+      NotificationService.instance.scheduleAllReminders();
+    } catch (_) {}
   }
 
   // Mengunggah / Backup Data ke Google Drive (dengan Smart Merge sebelumnya)
@@ -335,6 +419,9 @@ class GoogleDriveSyncService {
         'recurringReminders': daftarPengingatRutin.map((r) => recurringReminderToMap(r)).toList(),
         'deletedTransactionIds': deletedTransactionIds,
         'deletedReminderIds': deletedReminderIds,
+        'deletedContactIds': deletedContactIds,
+        'deletedUtangTxIds': deletedUtangTxIds,
+        'deletedAssetIds': deletedAssetIds,
       };
 
       final jsonString = jsonEncode(backupData);
@@ -417,6 +504,9 @@ class GoogleDriveSyncService {
         'recurringReminders': daftarPengingatRutin.map((r) => recurringReminderToMap(r)).toList(),
         'deletedTransactionIds': deletedTransactionIds,
         'deletedReminderIds': deletedReminderIds,
+        'deletedContactIds': deletedContactIds,
+        'deletedUtangTxIds': deletedUtangTxIds,
+        'deletedAssetIds': deletedAssetIds,
       };
 
       final jsonString = jsonEncode(mergedBackupData);

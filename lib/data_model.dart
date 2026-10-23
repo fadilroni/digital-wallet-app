@@ -169,6 +169,7 @@ class RecurringReminder {
   String note;
   int hour; // jam notifikasi (0-23)
   int minute; // menit notifikasi (0-59)
+  int? updatedAt;
 
   RecurringReminder({
     required this.id,
@@ -183,6 +184,7 @@ class RecurringReminder {
     this.note = '',
     this.hour = 9,
     this.minute = 0,
+    this.updatedAt,
   });
 }
 
@@ -217,6 +219,9 @@ List<Asset> daftarAsset = [];
 bool isHideSaldoGlobal = true;
 List<String> deletedTransactionIds = [];
 List<String> deletedReminderIds = [];
+List<String> deletedContactIds = [];
+List<String> deletedUtangTxIds = [];
+List<String> deletedAssetIds = [];
 final ValueNotifier<int> dataVersionNotifier = ValueNotifier<int>(0);
 
 void recordDeletedTransactionId(String id) {
@@ -235,6 +240,36 @@ void recordDeletedReminderId(String id) {
     deletedReminderIds.add(id);
     if (deletedReminderIds.length > 200) {
       deletedReminderIds.removeRange(0, deletedReminderIds.length - 200);
+    }
+  }
+}
+
+void recordDeletedContactId(String id) {
+  if (id.isEmpty) return;
+  if (!deletedContactIds.contains(id)) {
+    deletedContactIds.add(id);
+    if (deletedContactIds.length > 300) {
+      deletedContactIds.removeRange(0, deletedContactIds.length - 300);
+    }
+  }
+}
+
+void recordDeletedUtangTxId(String id) {
+  if (id.isEmpty) return;
+  if (!deletedUtangTxIds.contains(id)) {
+    deletedUtangTxIds.add(id);
+    if (deletedUtangTxIds.length > 500) {
+      deletedUtangTxIds.removeRange(0, deletedUtangTxIds.length - 500);
+    }
+  }
+}
+
+void recordDeletedAssetId(String id) {
+  if (id.isEmpty) return;
+  if (!deletedAssetIds.contains(id)) {
+    deletedAssetIds.add(id);
+    if (deletedAssetIds.length > 200) {
+      deletedAssetIds.removeRange(0, deletedAssetIds.length - 200);
     }
   }
 }
@@ -430,6 +465,7 @@ Map<String, dynamic> recurringReminderToMap(RecurringReminder r) {
     'note': r.note,
     'hour': r.hour,
     'minute': r.minute,
+    'updatedAt': r.updatedAt ?? r.nextDue.millisecondsSinceEpoch,
   };
 }
 
@@ -447,6 +483,7 @@ RecurringReminder recurringReminderFromMap(Map<dynamic, dynamic> map) {
     note: map['note'] ?? '',
     hour: (map['hour'] as num?)?.toInt() ?? 9,
     minute: (map['minute'] as num?)?.toInt() ?? 0,
+    updatedAt: (map['updatedAt'] as num?)?.toInt(),
   );
 }
 
@@ -483,6 +520,9 @@ void saveData({bool triggerCloudSync = true}) {
   box.put('recurringReminders', reminderMaps);
   box.put('deletedTransactionIds', deletedTransactionIds);
   box.put('deletedReminderIds', deletedReminderIds);
+  box.put('deletedContactIds', deletedContactIds);
+  box.put('deletedUtangTxIds', deletedUtangTxIds);
+  box.put('deletedAssetIds', deletedAssetIds);
 
   dataVersionNotifier.value++;
 
@@ -757,6 +797,30 @@ void loadData() {
     deletedReminderIds = [];
   }
 
+  // Load Deleted Contact IDs
+  final List<dynamic>? savedDeletedContactIds = box.get('deletedContactIds');
+  if (savedDeletedContactIds != null) {
+    deletedContactIds = List<String>.from(savedDeletedContactIds);
+  } else {
+    deletedContactIds = [];
+  }
+
+  // Load Deleted Utang Transaction IDs
+  final List<dynamic>? savedDeletedUtangTxIds = box.get('deletedUtangTxIds');
+  if (savedDeletedUtangTxIds != null) {
+    deletedUtangTxIds = List<String>.from(savedDeletedUtangTxIds);
+  } else {
+    deletedUtangTxIds = [];
+  }
+
+  // Load Deleted Asset IDs
+  final List<dynamic>? savedDeletedAssetIds = box.get('deletedAssetIds');
+  if (savedDeletedAssetIds != null) {
+    deletedAssetIds = List<String>.from(savedDeletedAssetIds);
+  } else {
+    deletedAssetIds = [];
+  }
+
   // Simpan data (untuk menyimpan migrasi kategori jika ada perubahan) tanpa trigger cloud upload
   saveData(triggerCloudSync: false);
 }
@@ -840,6 +904,9 @@ Future<String?> exportData() async {
           .map((r) => recurringReminderToMap(r))
           .toList(),
       'deletedReminderIds': deletedReminderIds,
+      'deletedContactIds': deletedContactIds,
+      'deletedUtangTxIds': deletedUtangTxIds,
+      'deletedAssetIds': deletedAssetIds,
     };
 
     final jsonString = jsonEncode(exportMap);
@@ -939,6 +1006,27 @@ Future<String> importData({File? selectedFile}) async {
         final List<dynamic> importedDeletedReminders = importMap['deletedReminderIds'];
         for (var id in importedDeletedReminders) {
           recordDeletedReminderId(id.toString());
+        }
+      }
+
+      if (importMap.containsKey('deletedContactIds')) {
+        final List<dynamic> importedDeletedContacts = importMap['deletedContactIds'];
+        for (var id in importedDeletedContacts) {
+          recordDeletedContactId(id.toString());
+        }
+      }
+
+      if (importMap.containsKey('deletedUtangTxIds')) {
+        final List<dynamic> importedDeletedUtangTx = importMap['deletedUtangTxIds'];
+        for (var id in importedDeletedUtangTx) {
+          recordDeletedUtangTxId(id.toString());
+        }
+      }
+
+      if (importMap.containsKey('deletedAssetIds')) {
+        final List<dynamic> importedDeletedAssets = importMap['deletedAssetIds'];
+        for (var id in importedDeletedAssets) {
+          recordDeletedAssetId(id.toString());
         }
       }
 

@@ -203,20 +203,31 @@ class NotificationService {
   }
 }
 
-Future<void> executeRecurringReminder(RecurringReminder reminder) async {
+Future<bool> executeRecurringReminder(RecurringReminder reminder) async {
   final now = DateTime.now();
-  daftarTransaksi.add(
-    Transaksi(
-      id: 'reminder_${reminder.id}_${now.millisecondsSinceEpoch}',
-      nominal: reminder.nominal,
-      catatan: reminder.title,
-      tipe: 'Pengeluaran',
-      kategori: reminder.kategori,
-      akun: reminder.akun,
-      tanggal: reminder.nextDue.isAfter(now) ? reminder.nextDue : now,
-      updatedAt: now.millisecondsSinceEpoch,
-    ),
-  );
+  final targetDate = reminder.nextDue;
+  final dateKey =
+      '${targetDate.year}${targetDate.month.toString().padLeft(2, '0')}${targetDate.day.toString().padLeft(2, '0')}';
+  final txId = 'reminder_${reminder.id}_$dateKey';
+
+  bool isNewTransaction = false;
+
+  // Cek apakah transaksi periode ini sudah dicatat (misal di HP lain lalu disinkronkan)
+  if (!daftarTransaksi.any((t) => t.id == txId)) {
+    daftarTransaksi.add(
+      Transaksi(
+        id: txId,
+        nominal: reminder.nominal,
+        catatan: reminder.title,
+        tipe: 'Pengeluaran',
+        kategori: reminder.kategori,
+        akun: reminder.akun,
+        tanggal: targetDate.isAfter(now) ? targetDate : now,
+        updatedAt: now.millisecondsSinceEpoch,
+      ),
+    );
+    isNewTransaction = true;
+  }
 
   switch (reminder.recurrenceType) {
     case 'Harian':
@@ -240,8 +251,10 @@ Future<void> executeRecurringReminder(RecurringReminder reminder) async {
       );
   }
 
+  reminder.updatedAt = now.millisecondsSinceEpoch;
   saveData();
   await NotificationService.instance.scheduleReminder(reminder);
+  return isNewTransaction;
 }
 
 Future<void> processRecurringReminder(String? payload) async {

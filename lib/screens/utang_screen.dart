@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../data_model.dart';
 
 class UtangScreen extends StatefulWidget {
@@ -740,7 +740,9 @@ class _DetailUtangScreenState extends State<_DetailUtangScreen> {
               onPressed: () => Navigator.pop(ctx), child: const Text("Batal")),
           ElevatedButton(
             onPressed: () {
+              recordDeletedContactId(widget.kontak.id);
               for (var tx in widget.kontak.transaksi) {
+                recordDeletedUtangTxId(tx.id);
                 removeTransaksiUtangFromMainList(tx.id);
               }
               daftarKontakUtang.removeWhere((k) => k.id == widget.kontak.id);
@@ -973,6 +975,7 @@ class _DetailUtangScreenState extends State<_DetailUtangScreen> {
           ),
           ElevatedButton(
             onPressed: () {
+              recordDeletedUtangTxId(tx.id);
               setState(() {
                 widget.kontak.transaksi.removeWhere((t) => t.id == tx.id);
               });

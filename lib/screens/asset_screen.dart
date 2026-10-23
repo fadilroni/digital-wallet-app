@@ -944,6 +944,7 @@ class _AssetScreenState extends State<AssetScreen> {
                       tanggal: DateTime.now(),
                     ),
                   );
+                  recordDeletedAssetId(a.id);
                   daftarAsset.removeWhere((x) => x.id == a.id);
                   saveData();
                 });
@@ -961,6 +962,7 @@ class _AssetScreenState extends State<AssetScreen> {
             ),
             onPressed: () {
               setState(() {
+                recordDeletedAssetId(a.id);
                 daftarAsset.removeWhere((x) => x.id == a.id);
                 saveData();
               });
