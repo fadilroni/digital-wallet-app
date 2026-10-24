@@ -36,9 +36,7 @@ class _HomeScreenState extends State<HomeScreen> {
     dataVersionNotifier.addListener(_onDataVersionChanged);
     _pageController = PageController(initialPage: _currentIndex);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (daftarPengingatRutin.any((r) => r.enabled)) {
-        NotificationService.instance.scheduleAllReminders();
-      }
+      NotificationService.instance.scheduleAllReminders();
       final dueReminders = daftarPengingatRutin
           .where((r) => r.enabled && !r.nextDue.isAfter(DateTime.now()))
           .toList();

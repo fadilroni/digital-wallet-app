@@ -5,6 +5,15 @@ import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'data_model.dart';
 
+int getDeterministicNotificationId(String id) {
+  int hash = 5381;
+  for (int i = 0; i < id.length; i++) {
+    hash = ((hash << 5) + hash) + id.codeUnitAt(i);
+    hash = hash & 0x7FFFFFFF; // 31-bit non-negative integer
+  }
+  return hash;
+}
+
 class NotificationService {
   NotificationService._internal();
   static final NotificationService instance = NotificationService._internal();
@@ -77,7 +86,7 @@ class NotificationService {
   Future<void> scheduleReminder(RecurringReminder reminder) async {
     if (!reminder.enabled) return;
 
-    final int notificationId = reminder.id.hashCode;
+    final int notificationId = getDeterministicNotificationId(reminder.id);
     try {
       await cancelReminder(reminder.id);
     } catch (_) {}
@@ -169,7 +178,7 @@ class NotificationService {
 
   Future<void> cancelReminder(String id) async {
     try {
-      await _plugin.cancel(id.hashCode);
+      await _plugin.cancel(getDeterministicNotificationId(id));
     } catch (e) {
       debugPrint('Gagal membatalkan notifikasi: $e');
     }
@@ -184,7 +193,17 @@ class NotificationService {
   }
 
   Future<void> scheduleAllReminders() async {
+    // 1. Bersihkan semua alarm lama di Android OS
+    await cancelAllReminders();
+
+    // 2. Batalkan juga secara eksplisit setiap ID yang tercatat pernah dihapus
+    for (var deletedId in deletedReminderIds) {
+      await cancelReminder(deletedId);
+    }
+
+    // 3. Daftarkan ulang hanya pengingat yang benar-benar ada dan aktif
     for (var reminder in daftarPengingatRutin) {
+      if (!reminder.enabled) continue;
       try {
         await scheduleReminder(reminder);
       } catch (e) {

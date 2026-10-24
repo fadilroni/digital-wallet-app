@@ -41,6 +41,7 @@ class Asset {
   DateTime? depositDate; // tanggal deposito
   String? sourceAccount; // akun asal
   bool? isInterestPaid; // apakah bunga sudah ditambahkan ke transaksi
+  String? rolloverType; // "compound" (saldo awal + bunga), "principal" (saldo awal), "none" (tidak perpanjang)
 
   Asset({
     required this.id,
@@ -54,6 +55,7 @@ class Asset {
     this.depositDate,
     this.sourceAccount,
     this.isInterestPaid = false,
+    this.rolloverType = "none",
   });
 }
 
@@ -321,6 +323,7 @@ Map<String, dynamic> assetToMap(Asset a) {
     'depositDate': a.depositDate?.toIso8601String(),
     'sourceAccount': a.sourceAccount,
     'isInterestPaid': a.isInterestPaid,
+    'rolloverType': a.rolloverType ?? 'none',
   };
 }
 
@@ -341,6 +344,7 @@ Asset assetFromMap(Map<dynamic, dynamic> map) {
         : null,
     sourceAccount: map['sourceAccount']?.toString(),
     isInterestPaid: map['isInterestPaid'] as bool? ?? false,
+    rolloverType: map['rolloverType']?.toString() ?? 'none',
   );
 }
 

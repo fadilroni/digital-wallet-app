@@ -205,17 +205,19 @@ class _AssetScreenState extends State<AssetScreen> {
 
     for (var a in daftarAsset) {
       if (a.assetType == "deposito" && !(a.isInterestPaid ?? false)) {
-        final depositDate = a.depositDate;
-        final tenorDays = a.tenor;
-        if (depositDate != null && tenorDays != null) {
-          final maturityDate = depositDate.add(Duration(days: tenorDays));
-          if (now.isAfter(maturityDate)) {
+        if (a.depositDate != null && a.tenor != null && a.tenor! > 0) {
+          DateTime currentDepositDate = a.depositDate!;
+          while (true) {
+            final maturityDate =
+                currentDepositDate.add(Duration(days: a.tenor!));
+            if (!now.isAfter(maturityDate)) break;
+
             final nominal = a.buyPrice;
             final bungaPercent = a.interestRate ?? 0.0;
 
             // Bunga = nominal * (bungaPercent / 100) * (tenorDays / 365)
             double bungaKotor =
-                nominal * (bungaPercent / 100.0) * (tenorDays / 365.0);
+                nominal * (bungaPercent / 100.0) * (a.tenor! / 365.0);
 
             // Hitung saldo akun saat ini
             double saldoAkun = saldoAwalMap[a.sourceAccount] ?? 0.0;
@@ -241,7 +243,9 @@ class _AssetScreenState extends State<AssetScreen> {
             bungaBersih = (bungaBersih * 100).round() / 100.0;
 
             if (bungaBersih > 0) {
-              final String txId = 'bunga_deposito_${a.id}';
+              final dateKey =
+                  '${maturityDate.year}${maturityDate.month.toString().padLeft(2, '0')}${maturityDate.day.toString().padLeft(2, '0')}';
+              final String txId = 'bunga_deposito_${a.id}_$dateKey';
               if (!daftarTransaksi.any((t) => t.id == txId)) {
                 daftarTransaksi.add(
                   Transaksi(
@@ -257,10 +261,28 @@ class _AssetScreenState extends State<AssetScreen> {
                     tanggal: maturityDate,
                   ),
                 );
-
-                a.isInterestPaid = true;
-                hasChanges = true;
               }
+            }
+
+            final rollover = a.rolloverType ?? 'none';
+            if (rollover == 'compound') {
+              // 1. Saldo Awal + Bunga: modal bertambah, tenor diperpanjang otomatis
+              a.buyPrice += bungaBersih;
+              a.depositDate = maturityDate;
+              currentDepositDate = maturityDate;
+              a.isInterestPaid = false;
+              hasChanges = true;
+            } else if (rollover == 'principal') {
+              // 2. Saldo Awal: modal tetap, tenor diperpanjang otomatis
+              a.depositDate = maturityDate;
+              currentDepositDate = maturityDate;
+              a.isInterestPaid = false;
+              hasChanges = true;
+            } else {
+              // 3. Tidak Perpanjang: selesai saat jatuh tempo
+              a.isInterestPaid = true;
+              hasChanges = true;
+              break;
             }
           }
         }
@@ -327,6 +349,8 @@ class _AssetScreenState extends State<AssetScreen> {
     DateTime depositDate = existing != null && existing.depositDate != null
         ? existing.depositDate!
         : DateTime.now();
+
+    String selectedRollover = existing?.rolloverType ?? 'none';
 
     String selectedAccount = existing != null && existing.sourceAccount != null
         ? existing.sourceAccount!
@@ -731,6 +755,37 @@ class _AssetScreenState extends State<AssetScreen> {
                           ),
                           const SizedBox(height: 14),
                         ],
+
+                        DropdownButtonFormField<String>(
+                          initialValue: selectedRollover,
+                          decoration: InputDecoration(
+                            labelText: 'Pembaruan Otomatis (Rollover)',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            prefixIcon: const Icon(Icons.autorenew),
+                          ),
+                          items: const [
+                            DropdownMenuItem(
+                              value: 'compound',
+                              child: Text('Saldo Awal + Bunga'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'principal',
+                              child: Text('Saldo Awal Saja'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'none',
+                              child: Text('Tidak Diperpanjang'),
+                            ),
+                          ],
+                          onChanged: (val) {
+                            if (val != null) {
+                              setBS(() => selectedRollover = val);
+                            }
+                          },
+                        ),
+                        const SizedBox(height: 14),
                       ],
                       const SizedBox(height: 24),
 
@@ -868,6 +923,7 @@ class _AssetScreenState extends State<AssetScreen> {
                                     depositDate: depositDate,
                                     sourceAccount: selectedAccount,
                                     isInterestPaid: false,
+                                    rolloverType: selectedRollover,
                                   ),
                                 );
 
@@ -888,6 +944,7 @@ class _AssetScreenState extends State<AssetScreen> {
                                 existing.interestRate = bunga;
                                 existing.tenor = tenor;
                                 existing.depositDate = depositDate;
+                                existing.rolloverType = selectedRollover;
                               }
                               saveData();
                             });
@@ -1330,6 +1387,16 @@ class _AssetScreenState extends State<AssetScreen> {
         statusColor = Colors.blue;
       }
 
+      String rolloverLabel = "Tidak Perpanjang";
+      Color rolloverBadgeColor = Colors.grey;
+      if (a.rolloverType == 'compound') {
+        rolloverLabel = "Auto: Pokok + Bunga";
+        rolloverBadgeColor = Colors.green;
+      } else if (a.rolloverType == 'principal') {
+        rolloverLabel = "Auto: Pokok";
+        rolloverBadgeColor = Colors.blue;
+      }
+
       return Dismissible(
         key: Key(a.id),
         direction: DismissDirection.endToStart,
@@ -1395,13 +1462,36 @@ class _AssetScreenState extends State<AssetScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            "REKSADANA / DEPOSITO",
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 10,
-                              color: Color(0xFF6C63FF),
-                            ),
+                          Row(
+                            children: [
+                              const Text(
+                                "REKSADANA / DEPOSITO",
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 10,
+                                  color: Color(0xFF6C63FF),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 5,
+                                  vertical: 1,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: rolloverBadgeColor.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  rolloverLabel,
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.bold,
+                                    color: rolloverBadgeColor,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 2),
                           Text(
