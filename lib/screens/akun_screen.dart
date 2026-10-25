@@ -1,5 +1,8 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
+import 'package:installed_apps/installed_apps.dart';
+import 'package:installed_apps/app_info.dart';
 import '../data_model.dart';
+import '../bank_notif_service.dart';
 
 class AkunScreen extends StatefulWidget {
   const AkunScreen({super.key});
@@ -22,6 +25,69 @@ class _AkunScreenState extends State<AkunScreen> {
       }
     }
     return saldo;
+  }
+
+  String _getBankDisplayName(String? bankKey) {
+    if (bankKey == null || bankKey.isEmpty) return "Tidak Terhubung";
+    for (var b in BankNotifService.knownBanks) {
+      if (b.id == bankKey) return b.name;
+    }
+    return bankKey;
+  }
+
+  Future<String?> _pilihAplikasiDiHp() async {
+    try {
+      List<AppInfo> apps = await InstalledApps.getInstalledApps(
+        excludeSystemApps: true,
+        withIcon: true,
+      );
+      if (!mounted) return null;
+      return await showDialog<String>(
+        context: context,
+        builder: (ctx) {
+          return AlertDialog(
+            title: const Text("Pilih Aplikasi di HP"),
+            content: SizedBox(
+              width: double.maxFinite,
+              height: 380,
+              child: apps.isEmpty
+                  ? const Center(child: Text("Tidak ada aplikasi pihak ketiga ditemukan"))
+                  : ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: apps.length,
+                      itemBuilder: (context, i) {
+                        final app = apps[i];
+                        return ListTile(
+                          leading: app.icon != null
+                              ? Image.memory(app.icon!, width: 36, height: 36)
+                              : const Icon(Icons.apps),
+                          title: Text(app.name ?? ''),
+                          subtitle: Text(
+                            app.packageName ?? '',
+                            style: const TextStyle(fontSize: 11),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          onTap: () {
+                            Navigator.pop(ctx, app.packageName);
+                          },
+                        );
+                      },
+                    ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text("Tutup"),
+              ),
+            ],
+          );
+        },
+      );
+    } catch (e) {
+      debugPrint("Gagal mengambil aplikasi terinstall: $e");
+      return null;
+    }
   }
 
   void _showDetailAkun(int index) {
@@ -192,6 +258,41 @@ class _AkunScreenState extends State<AkunScreen> {
                   ],
                 ],
               ),
+              if (notifBankAutoRecordEnabled) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Icon(
+                      bankAccountMapping.containsKey(namaAkun)
+                          ? Icons.notifications_active
+                          : Icons.notifications_none,
+                      size: 18,
+                      color: bankAccountMapping.containsKey(namaAkun)
+                          ? Colors.green
+                          : Colors.grey[600],
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      "Notifikasi Bank: ",
+                      style: TextStyle(color: Colors.grey[600], fontSize: 14),
+                    ),
+                    Expanded(
+                      child: Text(
+                        _getBankDisplayName(bankAccountMapping[namaAkun]),
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: bankAccountMapping.containsKey(namaAkun)
+                              ? Colors.green[700]
+                              : Colors.grey[800],
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
               const SizedBox(height: 24),
               // Action buttons
               Row(
@@ -247,6 +348,7 @@ class _AkunScreenState extends State<AkunScreen> {
   void _editAkun(int index) {
     final String oldNama = masterAkun[index];
     final double oldSaldoAwal = saldoAwalMap[oldNama] ?? 0.0;
+    String selectedBankId = bankAccountMapping[oldNama] ?? "";
 
     final TextEditingController editController = TextEditingController(
       text: oldNama,
@@ -258,74 +360,135 @@ class _AkunScreenState extends State<AkunScreen> {
     showDialog(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: const Text("Edit Akun/Dompet"),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: editController,
-                decoration: const InputDecoration(
-                  labelText: "Nama Akun/Dompet",
-                  border: OutlineInputBorder(),
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text("Edit Akun/Dompet"),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: editController,
+                      decoration: const InputDecoration(
+                        labelText: "Nama Akun/Dompet",
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: saldoAwalController,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [RibuanInputFormatter()],
+                      decoration: const InputDecoration(
+                        labelText: "Saldo Awal (Rp)",
+                        prefixText: "Rp ",
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    if (notifBankAutoRecordEnabled) ...[
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<String>(
+                        value: selectedBankId.isEmpty ? "" : (BankNotifService.knownBanks.any((b) => b.id == selectedBankId) ? selectedBankId : "__custom_selected__"),
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          labelText: "Hubungkan Notifikasi Bank",
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.notifications_active_outlined, color: Colors.blue),
+                        ),
+                        items: [
+                          const DropdownMenuItem(
+                            value: "",
+                            child: Text("Tidak Terhubung (Manual)"),
+                          ),
+                          ...BankNotifService.knownBanks.map((b) => DropdownMenuItem(
+                            value: b.id,
+                            child: Text(b.name, overflow: TextOverflow.ellipsis),
+                          )),
+                          if (selectedBankId.isNotEmpty && !BankNotifService.knownBanks.any((b) => b.id == selectedBankId))
+                            DropdownMenuItem(
+                              value: "__custom_selected__",
+                              child: Text("Aplikasi: $selectedBankId", overflow: TextOverflow.ellipsis),
+                            ),
+                          const DropdownMenuItem(
+                            value: "__custom_picker__",
+                            child: Text("➕ Pilih Aplikasi Lain di HP Ini...", style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
+                          ),
+                        ],
+                        onChanged: (val) async {
+                          if (val == "__custom_picker__") {
+                            final chosenPkg = await _pilihAplikasiDiHp();
+                            if (chosenPkg != null) {
+                              setDialogState(() {
+                                selectedBankId = chosenPkg;
+                              });
+                            }
+                          } else if (val != "__custom_selected__") {
+                            setDialogState(() {
+                              selectedBankId = val ?? "";
+                            });
+                          }
+                        },
+                      ),
+                    ],
+                  ],
                 ),
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: saldoAwalController,
-                keyboardType: TextInputType.number,
-                inputFormatters: [RibuanInputFormatter()],
-                decoration: const InputDecoration(
-                  labelText: "Saldo Awal (Rp)",
-                  prefixText: "Rp ",
-                  border: OutlineInputBorder(),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("Batal"),
                 ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Batal"),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                if (editController.text.isNotEmpty) {
-                  String newNama = editController.text;
-                  final String newSaldoAwalStr = saldoAwalController.text
-                      .replaceAll('.', '');
-                  final double newSaldoAwal =
-                      double.tryParse(newSaldoAwalStr) ?? 0.0;
+                ElevatedButton(
+                  onPressed: () {
+                    if (editController.text.isNotEmpty) {
+                      String newNama = editController.text;
+                      final String newSaldoAwalStr = saldoAwalController.text
+                          .replaceAll('.', '');
+                      final double newSaldoAwal =
+                          double.tryParse(newSaldoAwalStr) ?? 0.0;
 
-                  setState(() {
-                    masterAkun[index] = newNama;
-                    if (akunUtama == oldNama) {
-                      akunUtama = newNama;
-                    }
-                    // Update saldoAwalMap
-                    saldoAwalMap.remove(oldNama);
-                    if (newSaldoAwal > 0) {
-                      saldoAwalMap[newNama] = newSaldoAwal;
-                    }
+                      setState(() {
+                        masterAkun[index] = newNama;
+                        if (akunUtama == oldNama) {
+                          akunUtama = newNama;
+                        }
+                        // Update saldoAwalMap
+                        saldoAwalMap.remove(oldNama);
+                        if (newSaldoAwal > 0) {
+                          saldoAwalMap[newNama] = newSaldoAwal;
+                        }
 
-                    // Update transaksi yang memakai akun ini
-                    for (var t in daftarTransaksi) {
-                      if (t.akun == oldNama) {
-                        t.akun = newNama;
-                      }
+                        // Update bankAccountMapping
+                        if (oldNama != newNama) {
+                          bankAccountMapping.remove(oldNama);
+                        }
+                        if (selectedBankId.isNotEmpty) {
+                          bankAccountMapping[newNama] = selectedBankId;
+                        } else {
+                          bankAccountMapping.remove(newNama);
+                        }
+
+                        // Update transaksi yang memakai akun ini
+                        for (var t in daftarTransaksi) {
+                          if (t.akun == oldNama) {
+                            t.akun = newNama;
+                          }
+                        }
+                      });
+                      saveData();
+                      Navigator.pop(context);
                     }
-                  });
-                  saveData();
-                  Navigator.pop(context);
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text("Simpan"),
-            ),
-          ],
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text("Simpan"),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -371,6 +534,7 @@ class _AkunScreenState extends State<AkunScreen> {
                   }
                   // Hapus saldo awal
                   saldoAwalMap.remove(oldNama);
+                  bankAccountMapping.remove(oldNama);
                   // Update transaksi yang memakai akun ini ke akun pertama yang tersisa
                   for (var t in daftarTransaksi) {
                     if (t.akun == oldNama) {
@@ -396,71 +560,126 @@ class _AkunScreenState extends State<AkunScreen> {
   void _tambahAkun() {
     final TextEditingController namaController = TextEditingController();
     final TextEditingController saldoAwalController = TextEditingController();
+    String selectedBankId = "";
 
     showDialog(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: const Text('Tambah Akun / Dompet'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: namaController,
-                decoration: const InputDecoration(
-                  labelText: 'Nama Akun / Dompet',
-                  border: OutlineInputBorder(),
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Tambah Akun / Dompet'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: namaController,
+                      decoration: const InputDecoration(
+                        labelText: 'Nama Akun / Dompet',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: saldoAwalController,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [RibuanInputFormatter()],
+                      decoration: const InputDecoration(
+                        labelText: 'Saldo Awal (Rp)',
+                        prefixText: 'Rp ',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    if (notifBankAutoRecordEnabled) ...[
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<String>(
+                        value: selectedBankId.isEmpty ? "" : (BankNotifService.knownBanks.any((b) => b.id == selectedBankId) ? selectedBankId : "__custom_selected__"),
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          labelText: "Hubungkan Notifikasi Bank",
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.notifications_active_outlined, color: Colors.blue),
+                        ),
+                        items: [
+                          const DropdownMenuItem(
+                            value: "",
+                            child: Text("Tidak Terhubung (Manual)"),
+                          ),
+                          ...BankNotifService.knownBanks.map((b) => DropdownMenuItem(
+                            value: b.id,
+                            child: Text(b.name, overflow: TextOverflow.ellipsis),
+                          )),
+                          if (selectedBankId.isNotEmpty && !BankNotifService.knownBanks.any((b) => b.id == selectedBankId))
+                            DropdownMenuItem(
+                              value: "__custom_selected__",
+                              child: Text("Aplikasi: $selectedBankId", overflow: TextOverflow.ellipsis),
+                            ),
+                          const DropdownMenuItem(
+                            value: "__custom_picker__",
+                            child: Text("➕ Pilih Aplikasi Lain di HP Ini...", style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
+                          ),
+                        ],
+                        onChanged: (val) async {
+                          if (val == "__custom_picker__") {
+                            final chosenPkg = await _pilihAplikasiDiHp();
+                            if (chosenPkg != null) {
+                              setDialogState(() {
+                                selectedBankId = chosenPkg;
+                              });
+                            }
+                          } else if (val != "__custom_selected__") {
+                            setDialogState(() {
+                              selectedBankId = val ?? "";
+                            });
+                          }
+                        },
+                      ),
+                    ],
+                  ],
                 ),
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: saldoAwalController,
-                keyboardType: TextInputType.number,
-                inputFormatters: [RibuanInputFormatter()],
-                decoration: const InputDecoration(
-                  labelText: 'Saldo Awal (Rp)',
-                  prefixText: 'Rp ',
-                  border: OutlineInputBorder(),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Batal'),
                 ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Batal'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final nama = namaController.text.trim();
-                if (nama.isEmpty) return;
+                ElevatedButton(
+                  onPressed: () {
+                    final nama = namaController.text.trim();
+                    if (nama.isEmpty) return;
 
-                setState(() {
-                  if (!masterAkun.contains(nama)) {
-                    masterAkun.add(nama);
-                  }
-                  final saldoAwal =
-                      double.tryParse(
-                        saldoAwalController.text.replaceAll('.', ''),
-                      ) ??
-                      0.0;
-                  if (saldoAwal > 0) {
-                    saldoAwalMap[nama] = saldoAwal;
-                  }
-                  if (akunUtama.isEmpty) {
-                    akunUtama = nama;
-                  }
-                });
-                saveData();
-                Navigator.pop(context);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Simpan'),
-            ),
-          ],
+                    setState(() {
+                      if (!masterAkun.contains(nama)) {
+                        masterAkun.add(nama);
+                      }
+                      final saldoAwal =
+                          double.tryParse(
+                            saldoAwalController.text.replaceAll('.', ''),
+                          ) ??
+                          0.0;
+                      if (saldoAwal > 0) {
+                        saldoAwalMap[nama] = saldoAwal;
+                      }
+                      if (akunUtama.isEmpty) {
+                        akunUtama = nama;
+                      }
+                      if (selectedBankId.isNotEmpty) {
+                        bankAccountMapping[nama] = selectedBankId;
+                      }
+                    });
+                    saveData();
+                    Navigator.pop(context);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Simpan'),
+                ),
+              ],
+            );
+          },
         );
       },
     );

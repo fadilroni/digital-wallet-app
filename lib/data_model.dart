@@ -5,6 +5,7 @@ import 'package:path_provider/path_provider.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'google_drive_service.dart';
+import 'firebase_sync_service.dart';
 
 class Transaksi {
   String id;
@@ -218,12 +219,17 @@ Map<String, double> saldoAwalMap = {};
 List<Transaksi> daftarTransaksi = [];
 List<KontakUtang> daftarKontakUtang = [];
 List<Asset> daftarAsset = [];
-bool isHideSaldoGlobal = true;
+bool isHideSaldoGlobal = false;
 List<String> deletedTransactionIds = [];
 List<String> deletedReminderIds = [];
 List<String> deletedContactIds = [];
 List<String> deletedUtangTxIds = [];
 List<String> deletedAssetIds = [];
+String activeCloudProvider = 'firebase'; // 'gdrive' atau 'firebase'
+bool notifBankAutoRecordEnabled = false;
+String notifBankMode = 'confirm'; // 'confirm' (Opsi A) atau 'auto' (Opsi B)
+String notifBankDefaultKategori = 'Lain-lain';
+Map<String, String> bankAccountMapping = {}; // namaAkun -> nama/package bank
 final ValueNotifier<int> dataVersionNotifier = ValueNotifier<int>(0);
 
 void recordDeletedTransactionId(String id) {
@@ -527,13 +533,22 @@ void saveData({bool triggerCloudSync = true}) {
   box.put('deletedContactIds', deletedContactIds);
   box.put('deletedUtangTxIds', deletedUtangTxIds);
   box.put('deletedAssetIds', deletedAssetIds);
+  box.put('activeCloudProvider', activeCloudProvider);
+  box.put('notifBankAutoRecordEnabled', notifBankAutoRecordEnabled);
+  box.put('notifBankMode', notifBankMode);
+  box.put('notifBankDefaultKategori', notifBankDefaultKategori);
+  box.put('bankAccountMapping', bankAccountMapping);
 
   dataVersionNotifier.value++;
 
-  // Trigger otomatis sinkronisasi ke Google Drive jika pengguna terhubung
+  // Trigger otomatis sinkronisasi ke Cloud (Firebase / Google Drive) jika aktif
   if (triggerCloudSync) {
     Future.microtask(() {
-      GoogleDriveSyncService.instance.uploadDataToDrive();
+      if (activeCloudProvider == 'firebase') {
+        FirebaseSyncService.instance.syncLocalToCloud();
+      } else {
+        GoogleDriveSyncService.instance.uploadDataToDrive();
+      }
     });
   }
 }
@@ -543,7 +558,7 @@ void loadData() {
   final box = Hive.box('dompet_pribadi_box');
 
   // Load isHideSaldo
-  isHideSaldoGlobal = box.get('isHideSaldo', defaultValue: true);
+  isHideSaldoGlobal = box.get('isHideSaldo', defaultValue: false);
 
   // Load Akun (jika kosong, buat default)
   final List<dynamic>? savedAkun = box.get('akun');
@@ -823,6 +838,22 @@ void loadData() {
     deletedAssetIds = List<String>.from(savedDeletedAssetIds);
   } else {
     deletedAssetIds = [];
+  }
+
+  // Load Cloud & Notification Preferences
+  activeCloudProvider = box.get('activeCloudProvider', defaultValue: 'firebase');
+  notifBankAutoRecordEnabled = box.get('notifBankAutoRecordEnabled', defaultValue: false);
+  notifBankMode = box.get('notifBankMode', defaultValue: 'confirm');
+  notifBankDefaultKategori = box.get('notifBankDefaultKategori', defaultValue: 'Lain-lain');
+  final dynamic savedMapping = box.get('bankAccountMapping');
+  if (savedMapping != null) {
+    try {
+      bankAccountMapping = Map<String, String>.from(savedMapping as Map);
+    } catch (_) {
+      bankAccountMapping = {};
+    }
+  } else {
+    bankAccountMapping = {};
   }
 
   // Simpan data (untuk menyimpan migrasi kategori jika ada perubahan) tanpa trigger cloud upload

@@ -376,6 +376,20 @@ class GoogleDriveSyncService {
       }
     }
 
+    // 11. Pengaturan Notifikasi & Pemetaan Bank Smart Merge
+    if (remoteData.containsKey('bankAccountMapping') && remoteData['bankAccountMapping'] is Map) {
+      bankAccountMapping = Map<String, String>.from(remoteData['bankAccountMapping']);
+    }
+    if (remoteData.containsKey('notifBankAutoRecordEnabled') && remoteData['notifBankAutoRecordEnabled'] is bool) {
+      notifBankAutoRecordEnabled = remoteData['notifBankAutoRecordEnabled'];
+    }
+    if (remoteData.containsKey('notifBankMode') && remoteData['notifBankMode'] is String) {
+      notifBankMode = remoteData['notifBankMode'];
+    }
+    if (remoteData.containsKey('notifBankDefaultKategori') && remoteData['notifBankDefaultKategori'] is String) {
+      notifBankDefaultKategori = remoteData['notifBankDefaultKategori'];
+    }
+
     // Simpan hasil gabungan ke database lokal Hive
     saveData(triggerCloudSync: false);
 
@@ -422,6 +436,10 @@ class GoogleDriveSyncService {
         'deletedContactIds': deletedContactIds,
         'deletedUtangTxIds': deletedUtangTxIds,
         'deletedAssetIds': deletedAssetIds,
+        'bankAccountMapping': bankAccountMapping,
+        'notifBankAutoRecordEnabled': notifBankAutoRecordEnabled,
+        'notifBankMode': notifBankMode,
+        'notifBankDefaultKategori': notifBankDefaultKategori,
       };
 
       final jsonString = jsonEncode(backupData);
@@ -507,6 +525,10 @@ class GoogleDriveSyncService {
         'deletedContactIds': deletedContactIds,
         'deletedUtangTxIds': deletedUtangTxIds,
         'deletedAssetIds': deletedAssetIds,
+        'bankAccountMapping': bankAccountMapping,
+        'notifBankAutoRecordEnabled': notifBankAutoRecordEnabled,
+        'notifBankMode': notifBankMode,
+        'notifBankDefaultKategori': notifBankDefaultKategori,
       };
 
       final jsonString = jsonEncode(mergedBackupData);

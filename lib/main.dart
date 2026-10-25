@@ -1,14 +1,24 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'screens/home_screen.dart';
 import 'data_model.dart';
 import 'notification_service.dart';
 import 'google_drive_service.dart';
+import 'firebase_sync_service.dart';
+import 'bank_notif_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
     await initDatabase();
     await GoogleDriveSyncService.instance.init();
+    try {
+      await FirebaseSyncService.initFirebase();
+      if (activeCloudProvider == 'firebase') {
+        await FirebaseSyncService.instance.init();
+      }
+    } catch (e) {
+      debugPrint("Firebase init error: $e");
+    }
     await NotificationService.instance.init(
       onTapPayload: (payload) async {
         processRecurringReminder(payload);
@@ -17,6 +27,9 @@ void main() async {
     // Jadwal ulang semua notifikasi yg tersimpan (Android handle periodik via matchDateTimeComponents)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       NotificationService.instance.scheduleAllReminders();
+      if (notifBankAutoRecordEnabled) {
+        BankNotifService.instance.startListening();
+      }
     });
     runApp(MyApp());
   } catch (e, stack) {
