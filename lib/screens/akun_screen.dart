@@ -12,6 +12,31 @@ class AkunScreen extends StatefulWidget {
 }
 
 class _AkunScreenState extends State<AkunScreen> {
+  List<AppInfo> _installedApps = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadInstalledApps();
+  }
+
+  Future<void> _loadInstalledApps() async {
+    try {
+      final apps = await InstalledApps.getInstalledApps(
+        excludeSystemApps: true,
+        withIcon: true,
+      );
+      apps.sort((a, b) => (a.name ?? '').toLowerCase().compareTo((b.name ?? '').toLowerCase()));
+      if (mounted) {
+        setState(() {
+          _installedApps = apps;
+        });
+      }
+    } catch (e) {
+      debugPrint("Gagal memuat aplikasi: $e");
+    }
+  }
+
   /// Hitung saldo bersih untuk satu akun (Pemasukan - Pengeluaran)
   double _hitungSaldo(String namaAkun) {
     double saldo = saldoAwalMap[namaAkun] ?? 0.0;
@@ -29,6 +54,11 @@ class _AkunScreenState extends State<AkunScreen> {
 
   String _getBankDisplayName(String? bankKey) {
     if (bankKey == null || bankKey.isEmpty) return "Tidak Terhubung";
+    for (var app in _installedApps) {
+      if (app.packageName == bankKey) {
+        return app.name ?? bankKey;
+      }
+    }
     for (var b in BankNotifService.knownBanks) {
       if (b.id == bankKey) return b.name;
     }
@@ -37,50 +67,127 @@ class _AkunScreenState extends State<AkunScreen> {
 
   Future<String?> _pilihAplikasiDiHp() async {
     try {
-      List<AppInfo> apps = await InstalledApps.getInstalledApps(
-        excludeSystemApps: true,
-        withIcon: true,
-      );
+      List<AppInfo> apps = _installedApps;
+      if (apps.isEmpty) {
+        apps = await InstalledApps.getInstalledApps(
+          excludeSystemApps: true,
+          withIcon: true,
+        );
+        apps.sort((a, b) => (a.name ?? '').toLowerCase().compareTo((b.name ?? '').toLowerCase()));
+        if (mounted) {
+          setState(() {
+            _installedApps = apps;
+          });
+        }
+      }
       if (!mounted) return null;
+
+      String searchQuery = "";
+
       return await showDialog<String>(
         context: context,
         builder: (ctx) {
-          return AlertDialog(
-            title: const Text("Pilih Aplikasi di HP"),
-            content: SizedBox(
-              width: double.maxFinite,
-              height: 380,
-              child: apps.isEmpty
-                  ? const Center(child: Text("Tidak ada aplikasi pihak ketiga ditemukan"))
-                  : ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: apps.length,
-                      itemBuilder: (context, i) {
-                        final app = apps[i];
-                        return ListTile(
-                          leading: app.icon != null
-                              ? Image.memory(app.icon!, width: 36, height: 36)
-                              : const Icon(Icons.apps),
-                          title: Text(app.name ?? ''),
-                          subtitle: Text(
-                            app.packageName ?? '',
-                            style: const TextStyle(fontSize: 11),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+          return StatefulBuilder(
+            builder: (context, setPickerState) {
+              final filteredApps = apps.where((app) {
+                final name = (app.name ?? '').toLowerCase();
+                final pkg = (app.packageName ?? '').toLowerCase();
+                final q = searchQuery.toLowerCase();
+                return name.contains(q) || pkg.contains(q);
+              }).toList();
+
+              return AlertDialog(
+                title: const Text(
+                  "Pilih Aplikasi di HP",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                content: SizedBox(
+                  width: double.maxFinite,
+                  height: 420,
+                  child: Column(
+                    children: [
+                      TextField(
+                        decoration: InputDecoration(
+                          hintText: "Cari nama atau paket aplikasi...",
+                          prefixIcon: const Icon(Icons.search, size: 20),
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
                           ),
-                          onTap: () {
-                            Navigator.pop(ctx, app.packageName);
-                          },
-                        );
-                      },
-                    ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text("Tutup"),
-              ),
-            ],
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        onChanged: (val) {
+                          setPickerState(() {
+                            searchQuery = val;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 10),
+                      Expanded(
+                        child: filteredApps.isEmpty
+                            ? const Center(
+                                child: Text(
+                                  "Tidak ada aplikasi ditemukan",
+                                  style: TextStyle(color: Colors.grey),
+                                ),
+                              )
+                            : ListView.builder(
+                                shrinkWrap: true,
+                                itemCount: filteredApps.length,
+                                itemBuilder: (context, i) {
+                                  final app = filteredApps[i];
+                                  return ListTile(
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 4,
+                                      vertical: 2,
+                                    ),
+                                    leading: app.icon != null
+                                        ? ClipRRect(
+                                            borderRadius: BorderRadius.circular(8),
+                                            child: Image.memory(
+                                              app.icon!,
+                                              width: 38,
+                                              height: 38,
+                                            ),
+                                          )
+                                        : const Icon(Icons.apps, size: 38),
+                                    title: Text(
+                                      app.name ?? '',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                    subtitle: Text(
+                                      app.packageName ?? '',
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.grey,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    onTap: () {
+                                      Navigator.pop(ctx, app.packageName);
+                                    },
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text("Tutup"),
+                  ),
+                ],
+              );
+            },
           );
         },
       );
@@ -387,48 +494,134 @@ class _AkunScreenState extends State<AkunScreen> {
                       ),
                     ),
                     if (notifBankAutoRecordEnabled) ...[
-                      const SizedBox(height: 12),
-                      DropdownButtonFormField<String>(
-                        value: selectedBankId.isEmpty ? "" : (BankNotifService.knownBanks.any((b) => b.id == selectedBankId) ? selectedBankId : "__custom_selected__"),
-                        isExpanded: true,
-                        decoration: const InputDecoration(
-                          labelText: "Hubungkan Notifikasi Bank",
-                          border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.notifications_active_outlined, color: Colors.blue),
+                      const SizedBox(height: 14),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: selectedBankId.isNotEmpty
+                              ? Colors.blue.withValues(alpha: 0.06)
+                              : Colors.grey.withValues(alpha: 0.06),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: selectedBankId.isNotEmpty
+                                ? Colors.blue.shade300
+                                : Colors.grey.shade300,
+                          ),
                         ),
-                        items: [
-                          const DropdownMenuItem(
-                            value: "",
-                            child: Text("Tidak Terhubung (Manual)"),
-                          ),
-                          ...BankNotifService.knownBanks.map((b) => DropdownMenuItem(
-                            value: b.id,
-                            child: Text(b.name, overflow: TextOverflow.ellipsis),
-                          )),
-                          if (selectedBankId.isNotEmpty && !BankNotifService.knownBanks.any((b) => b.id == selectedBankId))
-                            DropdownMenuItem(
-                              value: "__custom_selected__",
-                              child: Text("Aplikasi: $selectedBankId", overflow: TextOverflow.ellipsis),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  selectedBankId.isNotEmpty
+                                      ? Icons.notifications_active
+                                      : Icons.notifications_none,
+                                  color: selectedBankId.isNotEmpty
+                                      ? Colors.blue
+                                      : Colors.grey[600],
+                                  size: 18,
+                                ),
+                                const SizedBox(width: 8),
+                                const Text(
+                                  "Notifikasi Bank Terhubung",
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
                             ),
-                          const DropdownMenuItem(
-                            value: "__custom_picker__",
-                            child: Text("➕ Pilih Aplikasi Lain di HP Ini...", style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
-                          ),
-                        ],
-                        onChanged: (val) async {
-                          if (val == "__custom_picker__") {
-                            final chosenPkg = await _pilihAplikasiDiHp();
-                            if (chosenPkg != null) {
-                              setDialogState(() {
-                                selectedBankId = chosenPkg;
-                              });
-                            }
-                          } else if (val != "__custom_selected__") {
-                            setDialogState(() {
-                              selectedBankId = val ?? "";
-                            });
-                          }
-                        },
+                            const SizedBox(height: 8),
+                            Text(
+                              selectedBankId.isNotEmpty
+                                  ? _getBankDisplayName(selectedBankId)
+                                  : "Tidak Terhubung (Manual)",
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: selectedBankId.isNotEmpty
+                                    ? FontWeight.w600
+                                    : FontWeight.normal,
+                                color: selectedBankId.isNotEmpty
+                                    ? Colors.black87
+                                    : Colors.grey[600],
+                              ),
+                            ),
+                            if (selectedBankId.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 2.0),
+                                child: Text(
+                                  selectedBankId,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.grey[600],
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: () async {
+                                      final chosenPkg = await _pilihAplikasiDiHp();
+                                      if (chosenPkg != null) {
+                                        setDialogState(() {
+                                          selectedBankId = chosenPkg;
+                                        });
+                                      }
+                                    },
+                                    icon: const Icon(Icons.touch_app, size: 16),
+                                    label: Text(
+                                      selectedBankId.isNotEmpty
+                                          ? "Ganti Aplikasi"
+                                          : "Pilih Aplikasi di HP",
+                                      style: const TextStyle(fontSize: 12),
+                                    ),
+                                    style: OutlinedButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 8,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                if (selectedBankId.isNotEmpty) ...[
+                                  const SizedBox(width: 8),
+                                  OutlinedButton.icon(
+                                    onPressed: () {
+                                      setDialogState(() {
+                                        selectedBankId = "";
+                                      });
+                                    },
+                                    icon: const Icon(
+                                      Icons.link_off,
+                                      size: 16,
+                                      color: Colors.red,
+                                    ),
+                                    label: const Text(
+                                      "Hapus Tautan",
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.red,
+                                      ),
+                                    ),
+                                    style: OutlinedButton.styleFrom(
+                                      side: const BorderSide(color: Colors.red),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 8,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ],
@@ -592,48 +785,134 @@ class _AkunScreenState extends State<AkunScreen> {
                       ),
                     ),
                     if (notifBankAutoRecordEnabled) ...[
-                      const SizedBox(height: 12),
-                      DropdownButtonFormField<String>(
-                        value: selectedBankId.isEmpty ? "" : (BankNotifService.knownBanks.any((b) => b.id == selectedBankId) ? selectedBankId : "__custom_selected__"),
-                        isExpanded: true,
-                        decoration: const InputDecoration(
-                          labelText: "Hubungkan Notifikasi Bank",
-                          border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.notifications_active_outlined, color: Colors.blue),
+                      const SizedBox(height: 14),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: selectedBankId.isNotEmpty
+                              ? Colors.blue.withValues(alpha: 0.06)
+                              : Colors.grey.withValues(alpha: 0.06),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: selectedBankId.isNotEmpty
+                                ? Colors.blue.shade300
+                                : Colors.grey.shade300,
+                          ),
                         ),
-                        items: [
-                          const DropdownMenuItem(
-                            value: "",
-                            child: Text("Tidak Terhubung (Manual)"),
-                          ),
-                          ...BankNotifService.knownBanks.map((b) => DropdownMenuItem(
-                            value: b.id,
-                            child: Text(b.name, overflow: TextOverflow.ellipsis),
-                          )),
-                          if (selectedBankId.isNotEmpty && !BankNotifService.knownBanks.any((b) => b.id == selectedBankId))
-                            DropdownMenuItem(
-                              value: "__custom_selected__",
-                              child: Text("Aplikasi: $selectedBankId", overflow: TextOverflow.ellipsis),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  selectedBankId.isNotEmpty
+                                      ? Icons.notifications_active
+                                      : Icons.notifications_none,
+                                  color: selectedBankId.isNotEmpty
+                                      ? Colors.blue
+                                      : Colors.grey[600],
+                                  size: 18,
+                                ),
+                                const SizedBox(width: 8),
+                                const Text(
+                                  "Notifikasi Bank Terhubung",
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
                             ),
-                          const DropdownMenuItem(
-                            value: "__custom_picker__",
-                            child: Text("➕ Pilih Aplikasi Lain di HP Ini...", style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
-                          ),
-                        ],
-                        onChanged: (val) async {
-                          if (val == "__custom_picker__") {
-                            final chosenPkg = await _pilihAplikasiDiHp();
-                            if (chosenPkg != null) {
-                              setDialogState(() {
-                                selectedBankId = chosenPkg;
-                              });
-                            }
-                          } else if (val != "__custom_selected__") {
-                            setDialogState(() {
-                              selectedBankId = val ?? "";
-                            });
-                          }
-                        },
+                            const SizedBox(height: 8),
+                            Text(
+                              selectedBankId.isNotEmpty
+                                  ? _getBankDisplayName(selectedBankId)
+                                  : "Tidak Terhubung (Manual)",
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: selectedBankId.isNotEmpty
+                                    ? FontWeight.w600
+                                    : FontWeight.normal,
+                                color: selectedBankId.isNotEmpty
+                                    ? Colors.black87
+                                    : Colors.grey[600],
+                              ),
+                            ),
+                            if (selectedBankId.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 2.0),
+                                child: Text(
+                                  selectedBankId,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.grey[600],
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: () async {
+                                      final chosenPkg = await _pilihAplikasiDiHp();
+                                      if (chosenPkg != null) {
+                                        setDialogState(() {
+                                          selectedBankId = chosenPkg;
+                                        });
+                                      }
+                                    },
+                                    icon: const Icon(Icons.touch_app, size: 16),
+                                    label: Text(
+                                      selectedBankId.isNotEmpty
+                                          ? "Ganti Aplikasi"
+                                          : "Pilih Aplikasi di HP",
+                                      style: const TextStyle(fontSize: 12),
+                                    ),
+                                    style: OutlinedButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 8,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                if (selectedBankId.isNotEmpty) ...[
+                                  const SizedBox(width: 8),
+                                  OutlinedButton.icon(
+                                    onPressed: () {
+                                      setDialogState(() {
+                                        selectedBankId = "";
+                                      });
+                                    },
+                                    icon: const Icon(
+                                      Icons.link_off,
+                                      size: 16,
+                                      color: Colors.red,
+                                    ),
+                                    label: const Text(
+                                      "Hapus Tautan",
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.red,
+                                      ),
+                                    ),
+                                    style: OutlinedButton.styleFrom(
+                                      side: const BorderSide(color: Colors.red),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 8,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ],
@@ -666,6 +945,8 @@ class _AkunScreenState extends State<AkunScreen> {
                       }
                       if (selectedBankId.isNotEmpty) {
                         bankAccountMapping[nama] = selectedBankId;
+                      } else {
+                        bankAccountMapping.remove(nama);
                       }
                     });
                     saveData();

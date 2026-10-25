@@ -83,6 +83,35 @@ class NotificationService {
     await androidImpl?.requestPermission();
   }
 
+  /// Menampilkan notifikasi lokal secara instan (untuk status/konfirmasi)
+  Future<void> showNotification({
+    required int id,
+    required String title,
+    required String body,
+    String? payload,
+    String channelId = 'bank_record_channel',
+    String channelName = 'Pencatatan Transaksi Bank',
+    String channelDescription = 'Notifikasi status pencatatan otomatis dari transaksi perbankan',
+  }) async {
+    try {
+      final androidDetails = AndroidNotificationDetails(
+        channelId,
+        channelName,
+        channelDescription: channelDescription,
+        importance: Importance.high,
+        priority: Priority.high,
+        styleInformation: BigTextStyleInformation(body),
+      );
+      final notifDetails = NotificationDetails(
+        android: androidDetails,
+        iOS: const DarwinNotificationDetails(),
+      );
+      await _plugin.show(id, title, body, notifDetails, payload: payload);
+    } catch (e) {
+      debugPrint("Gagal showNotification di NotificationService: $e");
+    }
+  }
+
   Future<void> scheduleReminder(RecurringReminder reminder) async {
     if (!reminder.enabled) return;
 

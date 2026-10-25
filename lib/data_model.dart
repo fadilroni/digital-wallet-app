@@ -743,6 +743,72 @@ void loadData() {
       ),
     );
   }
+
+  // Pastikan kategori "Transfer Bank" ada untuk Pemasukan dan Pengeluaran
+  final hasTransferBankPengeluaran = masterKategori.any(
+    (k) => k.nama == "Transfer Bank" && k.tipe == "Pengeluaran",
+  );
+  if (!hasTransferBankPengeluaran) {
+    masterKategori.add(
+      KategoriModel(
+        nama: "Transfer Bank",
+        tipe: "Pengeluaran",
+        ikon: Icons.account_balance,
+      ),
+    );
+  }
+  final hasTransferBankPemasukan = masterKategori.any(
+    (k) => k.nama == "Transfer Bank" && k.tipe == "Pemasukan",
+  );
+  if (!hasTransferBankPemasukan) {
+    masterKategori.add(
+      KategoriModel(
+        nama: "Transfer Bank",
+        tipe: "Pemasukan",
+        ikon: Icons.account_balance,
+      ),
+    );
+  }
+
+  // Pastikan kategori "Lain-lain" ada untuk Pengeluaran dan Pemasukan
+  final hasLainLainPengeluaran = masterKategori.any(
+    (k) => k.nama == "Lain-lain" && k.tipe == "Pengeluaran",
+  );
+  if (!hasLainLainPengeluaran) {
+    masterKategori.add(
+      KategoriModel(
+        nama: "Lain-lain",
+        tipe: "Pengeluaran",
+        ikon: Icons.category,
+      ),
+    );
+  }
+  final hasLainLainPemasukan = masterKategori.any(
+    (k) => k.nama == "Lain-lain" && k.tipe == "Pemasukan",
+  );
+  if (!hasLainLainPemasukan) {
+    masterKategori.add(
+      KategoriModel(
+        nama: "Lain-lain",
+        tipe: "Pemasukan",
+        ikon: Icons.category,
+      ),
+    );
+  }
+
+  // Pastikan kategori "Tagihan" ada untuk Pengeluaran
+  final hasTagihanPengeluaran = masterKategori.any(
+    (k) => k.nama == "Tagihan" && k.tipe == "Pengeluaran",
+  );
+  if (!hasTagihanPengeluaran) {
+    masterKategori.add(
+      KategoriModel(
+        nama: "Tagihan",
+        tipe: "Pengeluaran",
+        ikon: Icons.receipt_long,
+      ),
+    );
+  }
   // Load Transaksi
   final List<dynamic>? savedTransaksi = box.get('transaksi');
   if (savedTransaksi != null) {
@@ -852,6 +918,8 @@ void loadData() {
   } else {
     bankAccountMapping = {};
   }
+  // Sanitasi ghost mapping: hanya pertahankan akun yang benar-benar ada di masterAkun
+  bankAccountMapping.removeWhere((akun, _) => !masterAkun.contains(akun));
 
   // Simpan data (untuk menyimpan migrasi kategori jika ada perubahan) tanpa trigger cloud upload
   saveData(triggerCloudSync: false);

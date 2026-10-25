@@ -4,6 +4,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:notification_listener_service/notification_listener_service.dart';
 import 'package:notification_listener_service/notification_event.dart';
 import 'data_model.dart';
+import 'notification_service.dart';
 
 class BankAppInfo {
   final String id;
@@ -148,9 +149,10 @@ class BankNotifService {
     }
   }
 
-  /// Meminta izin Akses Notifikasi ke sistem Android
+  /// Meminta izin Akses Notifikasi ke sistem Android & izin posting notifikasi
   Future<bool> requestPermission() async {
     try {
+      await NotificationService.instance.requestPermission();
       return await NotificationListenerService.requestPermission();
     } catch (_) {
       return false;
@@ -316,29 +318,78 @@ class BankNotifService {
   static String detectTransactionType(String text) {
     final lower = text.toLowerCase();
 
-    // Kata kunci pemasukan (kredit)
+    // 1. Kata kunci Pengeluaran spesifik (Transfer Keluar, Pembayaran, QRIS, dll)
+    final keluarKeywords = [
+      'transfer ke',
+      'transfer keluar',
+      'transfer dana ke',
+      'realtime transfer',
+      'bi-fast ke',
+      'bifast ke',
+      'pembayaran',
+      'qris',
+      'debit',
+      'db ',
+      'pembelian',
+      'tarik tunai',
+      'kirim uang',
+      'kirim dana',
+      'terkirim ke',
+      'biaya admin',
+      'biaya transaksi',
+      'berhasil bayar',
+      'berhasil transfer ke',
+      'transaksi berhasil',
+    ];
+
+    // 2. Kata kunci Pemasukan (Transfer Masuk, Terima Uang, dll)
     final masukKeywords = [
       'transfer masuk',
+      'transfer dari',
+      'transfer dana dari',
       'dana masuk',
-      'terima uang',
-      'diterima',
       'uang masuk',
+      'terima uang',
+      'terima dana',
+      'diterima dari',
+      'diterima',
       'kredit',
+      'cr ',
       'top up berhasil',
+      'top up sebesar',
       'cashback',
       'gaji',
       'payroll',
       'setoran',
       'bunga deposito',
+      'bunga tabungan',
+      'masuk ke rekening',
+      'ditransfer ke rekening anda',
     ];
 
+    // Cek frasa pengeluaran spesifik terlebih dahulu
+    for (var kw in keluarKeywords) {
+      if (lower.contains(kw)) {
+        return 'Pengeluaran';
+      }
+    }
+
+    // Cek frasa pemasukan spesifik
     for (var kw in masukKeywords) {
       if (lower.contains(kw)) {
         return 'Pemasukan';
       }
     }
 
-    // Default transaksi notifikasi umumnya adalah Pengeluaran (debit/qris/transfer keluar)
+    // Cek indikator arah transfer jika hanya kata dasar
+    if (lower.contains('ke ')) {
+      return 'Pengeluaran';
+    }
+    if (lower.contains('dari ')) {
+      return 'Pemasukan';
+    }
+
+    // Default transaksi notifikasi perbankan umumnya adalah Pengeluaran
     return 'Pengeluaran';
   }
 
@@ -346,20 +397,43 @@ class BankNotifService {
   static String inferCategory(String text, String tipe) {
     final lower = text.toLowerCase();
 
+    // Kata kunci mutasi transfer antar bank / akun
+    final transferKeywords = [
+      'transfer',
+      'bi-fast',
+      'bifast',
+      'realtime transfer',
+      'kliring',
+      'rtgs',
+      'kirim uang',
+      'kirim dana',
+      'terima uang',
+      'terima dana',
+      'dana masuk',
+      'uang masuk',
+      'pindah dana',
+      'antar bank',
+    ];
+
     if (tipe == 'Pemasukan') {
       if (lower.contains('gaji') || lower.contains('payroll')) return 'Gaji';
       if (lower.contains('bunga') || lower.contains('dividen') || lower.contains('investasi')) return 'Investasi';
-      return 'Pemasukan Lain';
+      if (lower.contains('bonus') || lower.contains('reward')) return 'Bonus';
+
+      for (var kw in transferKeywords) {
+        if (lower.contains(kw)) return 'Transfer Bank';
+      }
+      return 'Transfer Bank';
     }
 
     // Cek Makanan & Minuman
     final foodKeywords = [
       'indomaret', 'alfamart', 'kopi', 'coffee', 'cafe', 'resto', 'restoran',
       'bakso', 'mie', 'gofood', 'grabfood', 'shopeefood', 'mcd', 'kfc',
-      'hokben', 'chatime', 'starbucks', 'kenangan', 'warung', 'martabak'
+      'hokben', 'chatime', 'starbucks', 'kenangan', 'warung', 'martabak', 'dapur'
     ];
     for (var kw in foodKeywords) {
-      if (lower.contains(kw)) return 'Makanan & Minuman';
+      if (lower.contains(kw)) return 'Makanan';
     }
 
     // Cek Transportasi
@@ -371,16 +445,16 @@ class BankNotifService {
       if (lower.contains(kw)) return 'Transportasi';
     }
 
-    // Cek Tagihan & Utilitas
+    // Cek Tagihan
     final billKeywords = [
       'pln', 'listrik', 'pdam', 'bpjs', 'indihome', 'wifi', 'telkomsel',
       'indosat', 'xl', 'tri', 'smartfren', 'pulsa', 'paket data'
     ];
     for (var kw in billKeywords) {
-      if (lower.contains(kw)) return 'Tagihan & Utilitas';
+      if (lower.contains(kw)) return 'Tagihan';
     }
 
-    // Cek Belanja Online
+    // Cek Belanja Online / Offline
     final shopKeywords = [
       'shopee', 'tokopedia', 'lazada', 'blibli', 'tiktok shop', 'zalora'
     ];
@@ -388,7 +462,12 @@ class BankNotifService {
       if (lower.contains(kw)) return 'Belanja';
     }
 
-    // Fallback ke kategori default pilihan pengguna
+    // Cek Transfer Bank
+    for (var kw in transferKeywords) {
+      if (lower.contains(kw)) return 'Transfer Bank';
+    }
+
+    // Fallback ke kategori default pilihan pengguna (misal 'Lain-lain')
     return notifBankDefaultKategori;
   }
 
@@ -435,27 +514,18 @@ class BankNotifService {
     );
   }
 
-  /// Menampilkan status notifikasi lokal ke HP pengguna
+  /// Menampilkan status notifikasi lokal ke HP pengguna menggunakan instance resmi
   Future<void> _notifyLocalRecorded({
     required String title,
     required String body,
   }) async {
     try {
-      final fln = FlutterLocalNotificationsPlugin();
-      const androidDetails = AndroidNotificationDetails(
-        'bank_record_channel',
-        'Pencatatan Transaksi Bank',
-        channelDescription: 'Notifikasi status pencatatan otomatis dari transaksi perbankan',
-        importance: Importance.high,
-        priority: Priority.high,
+      await NotificationService.instance.showNotification(
+        id: DateTime.now().millisecondsSinceEpoch % 100000,
+        title: title,
+        body: body,
       );
-      const notifDetails = NotificationDetails(android: androidDetails);
-      await fln.show(
-        DateTime.now().millisecond,
-        title,
-        body,
-        notifDetails,
-      );
+      debugPrint("Berhasil memunculkan notifikasi status: $title");
     } catch (e) {
       debugPrint("Gagal memunculkan notifikasi status: $e");
     }

@@ -150,7 +150,7 @@ class FirebaseSyncService {
         'notifBankAutoRecordEnabled': notifBankAutoRecordEnabled,
         'notifBankMode': notifBankMode,
         'notifBankDefaultKategori': notifBankDefaultKategori,
-      }, SetOptions(merge: true));
+      });
 
       // B. Unggah Transaksi dengan WriteBatch (maks 450 per batch)
       await _batchWriteCollection(
@@ -265,7 +265,7 @@ class FirebaseSyncService {
         'notifBankAutoRecordEnabled': notifBankAutoRecordEnabled,
         'notifBankMode': notifBankMode,
         'notifBankDefaultKategori': notifBankDefaultKategori,
-      }, SetOptions(merge: true));
+      });
 
       // Hapus dokumen yang ditandai terhapus di Firestore
       for (var id in deletedTransactionIds) {
