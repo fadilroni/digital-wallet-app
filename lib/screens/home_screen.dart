@@ -12,6 +12,7 @@ import 'utang_screen.dart';
 import 'asset_screen.dart';
 import 'recurring_reminder_screen.dart';
 import '../notification_service.dart';
+import '../firebase_sync_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -478,6 +479,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         item.tanggal = editTanggal;
                         item.updatedAt = DateTime.now().millisecondsSinceEpoch;
                       });
+                      FirebaseSyncService.instance.syncSingleTransaction(item);
                       saveData();
                       Navigator.pop(context);
                     }
@@ -524,9 +526,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     final targetId = 'transfer_keluar_${item.id}';
                     daftarTransaksi.removeWhere((t) => t.id == targetId);
                     recordDeletedTransactionId(targetId);
+                    FirebaseSyncService.instance.deleteSingleTransaction(targetId);
                   }
                   daftarTransaksi.removeWhere((t) => t.id == item.id);
                   recordDeletedTransactionId(item.id);
+                  FirebaseSyncService.instance.deleteSingleTransaction(item.id);
                 });
                 saveData();
                 Navigator.pop(context);
@@ -1070,48 +1074,49 @@ class _HomeScreenState extends State<HomeScreen> {
                       final transferId = DateTime.now().millisecondsSinceEpoch
                           .toString();
                       setState(() {
-                        daftarTransaksi.add(
-                          Transaksi(
-                            id: transferId,
-                            nominal: nominal,
-                            catatan: _catatanController.text,
-                            tipe: _pilihanTipe,
-                            kategori: _pilihanKategori,
-                            akun: _pilihanAkun,
-                            tanggal: pilihanTanggal,
-                          ),
+                        final primaryTx = Transaksi(
+                          id: transferId,
+                          nominal: nominal,
+                          catatan: _catatanController.text,
+                          tipe: _pilihanTipe,
+                          kategori: _pilihanKategori,
+                          akun: _pilihanAkun,
+                          tanggal: pilihanTanggal,
                         );
+                        daftarTransaksi.add(primaryTx);
+                        FirebaseSyncService.instance.syncSingleTransaction(primaryTx);
+
                         // Jika Pindah Dana Keluar: buat transaksi masuk ke akun tujuan
                         if (isPindahDanaKeluar) {
-                          daftarTransaksi.add(
-                            Transaksi(
-                              id: 'transfer_masuk_$transferId',
-                              nominal: nominal,
-                              catatan: _catatanController.text.isNotEmpty
-                                  ? _catatanController.text
-                                  : 'Transfer dari $_pilihanAkun',
-                              tipe: 'Pemasukan',
-                              kategori: 'Pindah Dana',
-                              akun: akunTujuan,
-                              tanggal: pilihanTanggal,
-                            ),
+                          final masukTx = Transaksi(
+                            id: 'transfer_masuk_$transferId',
+                            nominal: nominal,
+                            catatan: _catatanController.text.isNotEmpty
+                                ? _catatanController.text
+                                : 'Transfer dari $_pilihanAkun',
+                            tipe: 'Pemasukan',
+                            kategori: 'Pindah Dana',
+                            akun: akunTujuan,
+                            tanggal: pilihanTanggal,
                           );
+                          daftarTransaksi.add(masukTx);
+                          FirebaseSyncService.instance.syncSingleTransaction(masukTx);
                         }
                         // Jika Pindah Dana Masuk: buat transaksi keluar dari akun sumber
                         if (isPindahDanaMasuk) {
-                          daftarTransaksi.add(
-                            Transaksi(
-                              id: 'transfer_keluar_$transferId',
-                              nominal: nominal,
-                              catatan: _catatanController.text.isNotEmpty
-                                  ? _catatanController.text
-                                  : 'Transfer ke $_pilihanAkun',
-                              tipe: 'Pengeluaran',
-                              kategori: 'Pindah Dana',
-                              akun: akunTujuan,
-                              tanggal: pilihanTanggal,
-                            ),
+                          final keluarTx = Transaksi(
+                            id: 'transfer_keluar_$transferId',
+                            nominal: nominal,
+                            catatan: _catatanController.text.isNotEmpty
+                                ? _catatanController.text
+                                : 'Transfer ke $_pilihanAkun',
+                            tipe: 'Pengeluaran',
+                            kategori: 'Pindah Dana',
+                            akun: akunTujuan,
+                            tanggal: pilihanTanggal,
                           );
+                          daftarTransaksi.add(keluarTx);
+                          FirebaseSyncService.instance.syncSingleTransaction(keluarTx);
                         }
                         saveData();
                         _nominalController.clear();

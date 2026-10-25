@@ -541,14 +541,10 @@ void saveData({bool triggerCloudSync = true}) {
 
   dataVersionNotifier.value++;
 
-  // Trigger otomatis sinkronisasi ke Cloud (Firebase / Google Drive) jika aktif
+  // Trigger otomatis sinkronisasi ke Firebase Cloud jika aktif
   if (triggerCloudSync) {
     Future.microtask(() {
-      if (activeCloudProvider == 'firebase') {
-        FirebaseSyncService.instance.syncLocalToCloud();
-      } else {
-        GoogleDriveSyncService.instance.uploadDataToDrive();
-      }
+      FirebaseSyncService.instance.syncLocalToCloud();
     });
   }
 }
@@ -841,7 +837,8 @@ void loadData() {
   }
 
   // Load Cloud & Notification Preferences
-  activeCloudProvider = box.get('activeCloudProvider', defaultValue: 'firebase');
+  activeCloudProvider = 'firebase';
+  box.put('activeCloudProvider', 'firebase');
   notifBankAutoRecordEnabled = box.get('notifBankAutoRecordEnabled', defaultValue: false);
   notifBankMode = box.get('notifBankMode', defaultValue: 'confirm');
   notifBankDefaultKategori = box.get('notifBankDefaultKategori', defaultValue: 'Lain-lain');

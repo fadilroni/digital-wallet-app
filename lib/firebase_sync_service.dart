@@ -216,6 +216,30 @@ class FirebaseSyncService {
   }
 
   // ── 2. SINKRONISASI DARI LOKAL KE CLOUD SAAT ADA PERUBAHAN ─────────────────
+  /// Mengunggah 1 transaksi secara instan ke Firestore saat ditambah/diedit
+  Future<void> syncSingleTransaction(Transaksi t) async {
+    final user = currentUser;
+    if (user == null) return;
+    try {
+      await _txCol(user.uid).doc(t.id).set(transaksiToMap(t), SetOptions(merge: true));
+      debugPrint("Firebase syncSingleTransaction berhasil: ${t.id}");
+    } catch (e) {
+      debugPrint("Gagal syncSingleTransaction ke Firebase: $e");
+    }
+  }
+
+  /// Menghapus 1 transaksi langsung dari Firestore saat dihapus
+  Future<void> deleteSingleTransaction(String id) async {
+    final user = currentUser;
+    if (user == null) return;
+    try {
+      await _txCol(user.uid).doc(id).delete();
+      debugPrint("Firebase deleteSingleTransaction berhasil: $id");
+    } catch (e) {
+      debugPrint("Gagal deleteSingleTransaction dari Firebase: $e");
+    }
+  }
+
   Future<void> syncLocalToCloud() async {
     final user = currentUser;
     if (user == null || _isSyncing) return;
