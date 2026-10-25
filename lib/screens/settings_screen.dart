@@ -5,7 +5,6 @@ import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:open_filex/open_filex.dart';
 import '../data_model.dart';
-import '../google_drive_service.dart';
 import '../firebase_sync_service.dart';
 import '../bank_notif_service.dart';
 import 'kategori_screen.dart';
@@ -822,14 +821,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const Divider(height: 32),
 
-          // SECTION 4: CADANGAN DATA
+          // SECTION 4: CADANGAN DATA (BACKUP OFFLINE)
           Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: 16.0,
               vertical: 8.0,
             ),
             child: Text(
-              "CADANGAN DATA",
+              "CADANGAN DATA (BACKUP OFFLINE)",
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
@@ -838,14 +837,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           ListTile(
-            title: const Text('Ekspor Data (Backup)'),
+            title: const Text('Ekspor Data (Backup Offline)'),
+            subtitle: const Text('Simpan cadangan data lokal ke file .json'),
             leading: const Icon(Icons.upload_file),
             onTap: () {
               _exportJsonBackup();
             },
           ),
           ListTile(
-            title: const Text('Impor Data (Backup)'),
+            title: const Text('Impor Data (Backup Offline)'),
+            subtitle: const Text('Pulihkan data dari file cadangan .json'),
             leading: const Icon(Icons.download),
             onTap: () async {
               bool hasPermission = await _checkStoragePermission();
@@ -878,14 +879,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const Divider(height: 32),
 
-          // SECTION 5: SINKRONISASI CLOUD ONLINE
+          // SECTION 5: SINKRONISASI CLOUD ONLINE (FIREBASE)
           Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: 16.0,
               vertical: 8.0,
             ),
             child: Text(
-              "SINKRONISASI CLOUD ONLINE",
+              "SINKRONISASI CLOUD ONLINE (FIREBASE)",
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
@@ -893,336 +894,129 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
-            child: Container(
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                color: Colors.grey.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
+
+          Builder(
+            builder: (context) {
+              final fbUser = FirebaseSyncService.instance.currentUser;
+              final isSyncing = FirebaseSyncService.instance.isSyncing;
+
+              if (fbUser == null) {
+                return ListTile(
+                  leading: const Icon(Icons.cloud_off, color: Colors.orange),
+                  title: const Text('Hubungkan Firebase Cloud Sync'),
+                  subtitle: const Text('Login Google untuk sinkronisasi realtime 2 HP'),
+                  trailing: const Icon(Icons.login, color: Colors.green),
+                  onTap: () async {
+                    try {
+                      final user = await FirebaseSyncService.instance.signInWithGoogle();
+                      setState(() {
+                        isHideSaldo = isHideSaldoGlobal;
+                        enableLimit = limitPengeluaran > 0;
+                        if (enableLimit) {
+                          limitCtrl.text = formatRibuan(limitPengeluaran);
+                        }
+                      });
+                      if (!context.mounted) return;
+                      if (user != null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text("Berhasil masuk: ${user.email}. Data berhasil disinkronkan.")),
+                        );
+                      }
+                    } catch (e) {
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(_formatCloudAuthError(e)),
+                          duration: const Duration(seconds: 4),
+                        ),
+                      );
+                    }
+                  },
+                );
+              }
+
+              return Column(
                 children: [
-                  Expanded(
-                    child: InkWell(
-                      onTap: () {
-                        setState(() {
-                          activeCloudProvider = 'firebase';
-                        });
-                        saveData();
+                  ListTile(
+                    leading: CircleAvatar(
+                      backgroundImage: fbUser.photoURL != null ? NetworkImage(fbUser.photoURL!) : null,
+                      child: fbUser.photoURL == null ? const Icon(Icons.person) : null,
+                    ),
+                    title: Text(fbUser.displayName ?? 'Akun Firebase'),
+                    subtitle: Text(fbUser.email ?? ''),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.logout, color: Colors.red),
+                      onPressed: () async {
+                        await FirebaseSyncService.instance.signOut();
+                        setState(() {});
                       },
-                      borderRadius: BorderRadius.circular(10),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        decoration: BoxDecoration(
-                          color: activeCloudProvider == 'firebase'
-                              ? Colors.green
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Center(
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.cloud_sync,
-                                size: 18,
-                                color: activeCloudProvider == 'firebase'
-                                    ? Colors.white
-                                    : Colors.grey[700],
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                "Firebase Cloud",
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 13,
-                                  color: activeCloudProvider == 'firebase'
-                                      ? Colors.white
-                                      : Colors.grey[800],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
                     ),
                   ),
-                  Expanded(
-                    child: InkWell(
-                      onTap: () {
-                        setState(() {
-                          activeCloudProvider = 'gdrive';
-                        });
-                        saveData();
-                      },
-                      borderRadius: BorderRadius.circular(10),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        decoration: BoxDecoration(
-                          color: activeCloudProvider == 'gdrive'
-                              ? Colors.green
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Center(
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.add_to_drive,
-                                size: 18,
-                                color: activeCloudProvider == 'gdrive'
-                                    ? Colors.white
-                                    : Colors.grey[700],
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                "Google Drive",
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 13,
-                                  color: activeCloudProvider == 'gdrive'
-                                      ? Colors.white
-                                      : Colors.grey[800],
+                  ListTile(
+                    leading: const Icon(Icons.cloud_upload_outlined, color: Colors.blue),
+                    title: const Text('Migrasikan Data ke Firebase (1-Klik)'),
+                    subtitle: const Text('Upload seluruh data lokal ke Firebase Firestore'),
+                    trailing: isSyncing
+                        ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.chevron_right),
+                    onTap: isSyncing
+                        ? null
+                        : () async {
+                            setState(() {});
+                            final ok = await FirebaseSyncService.instance.migrateLocalDataToFirebase();
+                            setState(() {});
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  ok
+                                      ? "Seluruh data lokal berhasil dimigrasikan ke Firebase!"
+                                      : "Gagal migrasi data ke Firebase.",
                                 ),
                               ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
+                            );
+                          },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.cloud_download_outlined, color: Colors.teal),
+                    title: const Text('Tarik Data dari Firebase (Download)'),
+                    subtitle: const Text('Unduh dan sinkronkan akun, kategori & transaksi dari cloud'),
+                    trailing: isSyncing
+                        ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.chevron_right),
+                    onTap: isSyncing
+                        ? null
+                        : () async {
+                            setState(() {});
+                            final ok = await FirebaseSyncService.instance.pullFromFirebase();
+                            setState(() {
+                              isHideSaldo = isHideSaldoGlobal;
+                              enableLimit = limitPengeluaran > 0;
+                              if (enableLimit) {
+                                limitCtrl.text = formatRibuan(limitPengeluaran);
+                              }
+                            });
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  ok
+                                      ? "Data dari Firebase berhasil ditarik dan disinkronkan!"
+                                      : "Gagal menarik data dari Firebase.",
+                                ),
+                              ),
+                            );
+                          },
+                  ),
+                  const ListTile(
+                    leading: Icon(Icons.sync, color: Colors.green),
+                    title: Text('Sinkronisasi Realtime'),
+                    subtitle: Text('Aktif • Setiap perubahan tersinkron otomatis antar-HP'),
                   ),
                 ],
-              ),
-            ),
+              );
+            },
           ),
-
-          // Tampilan Berdasarkan Cloud Provider
-          if (activeCloudProvider == 'firebase') ...[
-            Builder(
-              builder: (context) {
-                final fbUser = FirebaseSyncService.instance.currentUser;
-                final isSyncing = FirebaseSyncService.instance.isSyncing;
-
-                if (fbUser == null) {
-                  return ListTile(
-                    leading: const Icon(Icons.cloud_off, color: Colors.orange),
-                    title: const Text('Hubungkan Firebase Cloud Sync'),
-                    subtitle: const Text('Login Google untuk sinkronisasi realtime 2 HP'),
-                    trailing: const Icon(Icons.login, color: Colors.green),
-                    onTap: () async {
-                      try {
-                        final user = await FirebaseSyncService.instance.signInWithGoogle();
-                        setState(() {
-                          isHideSaldo = isHideSaldoGlobal;
-                          enableLimit = limitPengeluaran > 0;
-                          if (enableLimit) {
-                            limitCtrl.text = formatRibuan(limitPengeluaran);
-                          }
-                        });
-                        if (!context.mounted) return;
-                        if (user != null) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text("Berhasil masuk: ${user.email}. Data berhasil disinkronkan.")),
-                          );
-                        }
-                      } catch (e) {
-                        if (!context.mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(_formatCloudAuthError(e)),
-                            duration: const Duration(seconds: 4),
-                          ),
-                        );
-                      }
-                    },
-                  );
-                }
-
-                return Column(
-                  children: [
-                    ListTile(
-                      leading: CircleAvatar(
-                        backgroundImage: fbUser.photoURL != null ? NetworkImage(fbUser.photoURL!) : null,
-                        child: fbUser.photoURL == null ? const Icon(Icons.person) : null,
-                      ),
-                      title: Text(fbUser.displayName ?? 'Akun Firebase'),
-                      subtitle: Text(fbUser.email ?? ''),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.logout, color: Colors.red),
-                        onPressed: () async {
-                          await FirebaseSyncService.instance.signOut();
-                          setState(() {});
-                        },
-                      ),
-                    ),
-                    ListTile(
-                      leading: const Icon(Icons.cloud_upload_outlined, color: Colors.blue),
-                      title: const Text('Migrasikan Data ke Firebase (1-Klik)'),
-                      subtitle: const Text('Upload seluruh data lokal ke Firebase Firestore'),
-                      trailing: isSyncing
-                          ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
-                          : const Icon(Icons.chevron_right),
-                      onTap: isSyncing
-                          ? null
-                          : () async {
-                              setState(() {});
-                              final ok = await FirebaseSyncService.instance.migrateLocalDataToFirebase();
-                              setState(() {});
-                              if (!context.mounted) return;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    ok
-                                        ? "Seluruh data lokal berhasil dimigrasikan ke Firebase!"
-                                        : "Gagal migrasi data ke Firebase.",
-                                  ),
-                                ),
-                              );
-                            },
-                    ),
-                    ListTile(
-                      leading: const Icon(Icons.cloud_download_outlined, color: Colors.teal),
-                      title: const Text('Tarik Data dari Firebase (Download)'),
-                      subtitle: const Text('Unduh dan sinkronkan akun, kategori & transaksi dari cloud'),
-                      trailing: isSyncing
-                          ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
-                          : const Icon(Icons.chevron_right),
-                      onTap: isSyncing
-                          ? null
-                          : () async {
-                              setState(() {});
-                              final ok = await FirebaseSyncService.instance.pullFromFirebase();
-                              setState(() {
-                                isHideSaldo = isHideSaldoGlobal;
-                                enableLimit = limitPengeluaran > 0;
-                                if (enableLimit) {
-                                  limitCtrl.text = formatRibuan(limitPengeluaran);
-                                }
-                              });
-                              if (!context.mounted) return;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    ok
-                                        ? "Data dari Firebase berhasil ditarik dan disinkronkan!"
-                                        : "Gagal menarik data dari Firebase.",
-                                  ),
-                                ),
-                              );
-                            },
-                    ),
-                    const ListTile(
-                      leading: Icon(Icons.sync, color: Colors.green),
-                      title: Text('Sinkronisasi Realtime'),
-                      subtitle: Text('Aktif • Setiap perubahan tersinkron otomatis antar-HP'),
-                    ),
-                  ],
-                );
-              },
-            ),
-          ] else ...[
-            Builder(
-              builder: (context) {
-                final user = GoogleDriveSyncService.instance.currentUser;
-                final isSyncing = GoogleDriveSyncService.instance.isSyncing;
-
-                if (user == null) {
-                  return ListTile(
-                    leading: const Icon(Icons.cloud_off, color: Colors.orange),
-                    title: const Text('Hubungkan Akun Google Drive'),
-                    subtitle: const Text('Login untuk sinkronisasi cadangan file di Drive'),
-                    trailing: const Icon(Icons.login, color: Colors.green),
-                    onTap: () async {
-                      try {
-                        await GoogleDriveSyncService.instance.signIn();
-                        setState(() {});
-                        if (!context.mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text("Berhasil terhubung ke Akun Google!")),
-                        );
-                      } catch (e) {
-                        if (!context.mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(_formatCloudAuthError(e)),
-                            duration: const Duration(seconds: 4),
-                          ),
-                        );
-                      }
-                    },
-                  );
-                }
-
-                return Column(
-                  children: [
-                    ListTile(
-                      leading: CircleAvatar(
-                        backgroundImage: user.photoUrl != null ? NetworkImage(user.photoUrl!) : null,
-                        child: user.photoUrl == null ? const Icon(Icons.person) : null,
-                      ),
-                      title: Text(user.displayName ?? 'Akun Google'),
-                      subtitle: Text(user.email),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.logout, color: Colors.red),
-                        onPressed: () async {
-                          await GoogleDriveSyncService.instance.signOut();
-                          setState(() {});
-                        },
-                      ),
-                    ),
-                    ListTile(
-                      leading: const Icon(Icons.cloud_upload, color: Colors.blue),
-                      title: const Text('Upload Data Manual'),
-                      subtitle: const Text('Gabungkan & upload data lokal ke Google Drive'),
-                      trailing: isSyncing ? const CircularProgressIndicator() : const Icon(Icons.chevron_right),
-                      onTap: isSyncing
-                          ? null
-                          : () async {
-                              setState(() {});
-                              final success = await GoogleDriveSyncService.instance.uploadDataToDrive();
-                              setState(() {});
-                              if (!context.mounted) return;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    success
-                                        ? "Data berhasil digabungkan & di-upload ke Google Drive!"
-                                        : "Gagal meng-upload data ke Google Drive.",
-                                  ),
-                                ),
-                              );
-                            },
-                    ),
-                    ListTile(
-                      leading: const Icon(Icons.cloud_download, color: Colors.green),
-                      title: const Text('Sinkron / Tarik Data Online'),
-                      subtitle: const Text('Tarik & gabungkan data dari Google Drive'),
-                      trailing: isSyncing ? const CircularProgressIndicator() : const Icon(Icons.refresh),
-                      onTap: isSyncing
-                          ? null
-                          : () async {
-                              setState(() {});
-                              final success = await GoogleDriveSyncService.instance.downloadDataFromDrive();
-                              setState(() {});
-                              if (!context.mounted) return;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    success
-                                        ? "Data berhasil disinkronkan & digabungkan dari Google Drive!"
-                                        : "Gagal menarik data dari Google Drive.",
-                                  ),
-                                ),
-                              );
-                            },
-                    ),
-                  ],
-                );
-              },
-            ),
-          ],
 
           const Divider(height: 32),
 

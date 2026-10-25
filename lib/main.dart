@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'screens/home_screen.dart';
 import 'data_model.dart';
 import 'notification_service.dart';
-import 'google_drive_service.dart';
 import 'firebase_sync_service.dart';
 import 'bank_notif_service.dart';
 
@@ -10,7 +9,6 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
     await initDatabase();
-    await GoogleDriveSyncService.instance.init();
     try {
       await FirebaseSyncService.initFirebase();
       if (activeCloudProvider == 'firebase') {
